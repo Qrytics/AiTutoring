@@ -1,0 +1,282 @@
+/* ============================================================
+   CSS Custom Properties — design system matching mario-belmonte.com
+   ============================================================ */
+:root {
+	/* Background layers */
+	--bg: #0b0e12;
+	--panel: #0f141b;
+	--panel-2: #0c1016;
+
+	/* Borders */
+	--border: rgba(222, 232, 255, 0.14);
+	--border-2: rgba(222, 232, 255, 0.09);
+
+	/* Text scale */
+	--text: rgba(243, 246, 255, 0.92);
+	--muted: rgba(243, 246, 255, 0.68);
+	--muter: rgba(243, 246, 255, 0.52);
+
+	/* Accent colors */
+	--accent: #36f2c2;
+	--accent-2: #f6c177;
+	--hot: #ff5b57;
+	--warm: #febc2e;
+	--cool: #28c840;
+
+	/* Depth */
+	--shadow: 0 14px 40px rgba(0, 0, 0, 0.55);
+
+	/* Typography — all monospace */
+	--font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+		'Courier New', monospace;
+}
+
+[data-theme='light'] {
+	color-scheme: light;
+	--clr-light-a0: #ffffff;
+	--clr-surface-tonal-a0: #eaf4f2;
+	--clr-surface-tonal-a10: #dee6e5;
+	--clr-primary-a0: #0d9488;
+	--clr-primary-a30: #196159;
+	--clr-primary-a40: #19504a;
+	--clr-primary-a50: #18413c;
+
+	--bg: var(--clr-light-a0);
+	--panel: var(--clr-surface-tonal-a0);
+	--panel-2: var(--clr-surface-tonal-a0);
+	--border: var(--clr-surface-tonal-a10);
+	--border-2: var(--clr-surface-tonal-a10);
+	--text: var(--clr-primary-a50);
+	--muted: var(--clr-primary-a40);
+	--muter: var(--clr-primary-a30);
+	--accent: var(--clr-primary-a0);
+	--accent-2: var(--clr-primary-a0);
+	--shadow: none;
+}
+
+[data-theme='light'] body {
+	background: var(--clr-light-a0);
+}
+
+[data-theme='light'] .site-header,
+[data-theme='light'] .site-header--scrolled,
+[data-theme='light'] .site-header--compact .site-nav {
+	background: var(--clr-surface-tonal-a0) !important;
+	border-color: var(--clr-surface-tonal-a10) !important;
+}
+
+[data-theme='light'] h1,
+[data-theme='light'] h2,
+[data-theme='light'] h3,
+[data-theme='light'] h4,
+[data-theme='light'] h5,
+[data-theme='light'] h6 {
+	color: var(--clr-primary-a40) !important;
+	text-shadow: 0 1px 0 rgba(255, 255, 255, 0.98), 0 0 14px rgba(255, 255, 255, 0.7) !important;
+}
+
+[data-theme='light'] p,
+[data-theme='light'] .card__desc,
+[data-theme='light'] .link,
+[data-theme='light'] .email-btn {
+	color: var(--clr-primary-a40) !important;
+	text-shadow: none;
+}
+
+[data-theme='light'] .section-title,
+[data-theme='light'] .badge,
+[data-theme='light'] .tag,
+[data-theme='light'] .kicker,
+[data-theme='light'] .muted {
+	color: var(--clr-primary-a30) !important;
+}
+
+[data-theme='light'] .site-nav a,
+[data-theme='light'] .site-header__menu {
+	color: var(--clr-primary-a30) !important;
+}
+
+[data-theme='light'] :where(a, .btn, .site-nav a, .back-link a, .email-btn),
+[data-theme='light'] .btn--ghost,
+[data-theme='light'] .btn--primary {
+	color: var(--clr-primary-a0);
+}
+
+[data-theme='light'] .trigger,
+[data-theme='light'] .theme-toggle {
+	background: var(--clr-light-a0) !important;
+	border-color: var(--clr-surface-tonal-a10) !important;
+	color: var(--clr-primary-a40) !important;
+}
+
+[data-theme='light'] .trigger:hover,
+[data-theme='light'] .theme-toggle:hover {
+	background: color-mix(in srgb, var(--clr-primary-a0) 10%, var(--clr-light-a0)) !important;
+	border-color: var(--clr-primary-a30) !important;
+	color: var(--clr-primary-a0) !important;
+}
+
+[data-theme='light'] .tag,
+[data-theme='light'] .tech-badge {
+	background: var(--clr-surface-tonal-a10) !important;
+	border-color: var(--clr-surface-tonal-a10) !important;
+	color: var(--clr-primary-a0) !important;
+}
+
+[data-theme='light'] :where(.card, .step-card, .faq-item, .pricing-card) {
+	border-color: var(--clr-surface-tonal-a10) !important;
+	box-shadow: none !important;
+}
+
+[data-theme='light'] :where(.card, .step-card, .faq-item, .pricing-card) {
+	background: var(--clr-surface-tonal-a0) !important;
+}
+
+[data-theme='light'] :where(.backdrop, .nav-backdrop) {
+	background: rgba(15, 23, 42, 0.22) !important;
+}
+
+/* ============================================================
+   Reset & Base
+   ============================================================ */
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+	margin: 0;
+	padding: 0;
+	border-radius: 0;
+}
+
+html {
+	background: var(--bg);
+	scroll-behavior: smooth;
+	scroll-padding-top: 5rem;
+	scrollbar-gutter: stable;
+}
+
+body {
+	background: linear-gradient(180deg, rgba(54, 242, 194, 0.08), transparent 36%),
+		linear-gradient(0deg, rgba(246, 193, 119, 0.06), transparent 30%), var(--bg);
+	color: var(--text);
+	font-family: var(--font-mono);
+	font-size: 16px;
+	line-height: 1.6;
+	min-height: 100svh;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+
+/* CSS grid overlay */
+body::before {
+	content: '';
+	position: fixed;
+	inset: 0;
+	pointer-events: none;
+	z-index: 0;
+	background-image: linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+		linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+	background-size: 56px 56px;
+	opacity: 0.35;
+	-webkit-mask-image: radial-gradient(closest-side, rgba(0, 0, 0, 0.75), transparent 70%);
+	mask-image: radial-gradient(closest-side, rgba(0, 0, 0, 0.75), transparent 70%);
+}
+
+[data-theme='light'] body::before {
+	background-image: linear-gradient(rgba(15, 23, 42, 0.04) 1px, transparent 1px),
+		linear-gradient(90deg, rgba(15, 23, 42, 0.04) 1px, transparent 1px);
+	opacity: 0.16;
+}
+
+/* ============================================================
+   Selection
+   ============================================================ */
+::selection {
+	background: var(--accent);
+	color: var(--bg);
+}
+
+/* ============================================================
+   Scrollbar (Webkit)
+   ============================================================ */
+::-webkit-scrollbar {
+	width: 6px;
+}
+::-webkit-scrollbar-track {
+	background: var(--bg);
+}
+::-webkit-scrollbar-thumb {
+	background: rgba(222, 232, 255, 0.15);
+}
+::-webkit-scrollbar-thumb:hover {
+	background: rgba(222, 232, 255, 0.3);
+}
+
+/* ============================================================
+   Typography
+   ============================================================ */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+	font-family: var(--font-mono);
+	color: var(--text);
+	line-height: 1.2;
+}
+
+a {
+	color: var(--accent);
+	font-family: var(--font-mono);
+}
+
+code,
+pre {
+	font-family: var(--font-mono);
+}
+
+pre,
+code:not(.tag):not(.badge) {
+	background: #0b1220;
+	color: #e2e8f0;
+	border: 1px solid #1e293b;
+}
+
+pre {
+	padding: 0.65rem 0.8rem;
+	overflow-x: auto;
+}
+
+code:not(.tag):not(.badge) {
+	padding: 0.1rem 0.3rem;
+}
+
+html,
+body,
+a,
+button,
+input,
+svg,
+svg * {
+	transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease,
+		fill 200ms ease, stroke 200ms ease, box-shadow 200ms ease;
+}
+
+/* ============================================================
+   Focus styles
+   ============================================================ */
+:focus-visible {
+	outline: 2px solid rgba(54, 242, 194, 0.55);
+	outline-offset: 3px;
+}
+
+/* ============================================================
+   Reduced motion
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+	* {
+		animation-duration: 0.01ms !important;
+		transition-duration: 0.01ms !important;
+	}
+}
