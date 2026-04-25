@@ -6,6 +6,7 @@ import {
 	STRIPE_PRICE_ID_BUNDLE,
 	STRIPE_PRICE_ID_MONTHLY
 } from '$env/static/private';
+import { BASE_PATH } from '$lib/config';
 
 // Map UI tier IDs → Stripe Price IDs (configured in .env / Vercel environment variables).
 const PRICE_IDS: Record<string, string> = {
@@ -36,10 +37,9 @@ export const POST: RequestHandler = async ({ request, url }) => {
 
 	// Build absolute success / cancel URLs using the request origin so this
 	// works both in local development and in production behind the /tutoring proxy.
-	const basePath = '/tutoring';
 	const origin = url.origin;
-	const successUrl = `${origin}${basePath}/success?session_id={CHECKOUT_SESSION_ID}`;
-	const cancelUrl = `${origin}${basePath}/cancel`;
+	const successUrl = `${origin}${BASE_PATH}/success?session_id={CHECKOUT_SESSION_ID}`;
+	const cancelUrl = `${origin}${BASE_PATH}/cancel`;
 
 	const session = await stripe.checkout.sessions.create({
 		mode: 'payment',

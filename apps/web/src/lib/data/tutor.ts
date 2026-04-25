@@ -11,7 +11,9 @@ export const tutor = {
 	github: 'https://github.com/Qrytics',
 	linkedin: 'https://www.linkedin.com/in/mario-belmonte/',
 	portfolioUrl: 'https://mario-belmonte.com',
-	// Replace with your real Calendly link after setting it up at https://calendly.com
+	// Fallback Calendly URL used when PUBLIC_CALENDLY_URL env var is not set.
+	// In production the env var takes precedence (see routes/book/+page.svelte).
+	// Update this value OR set PUBLIC_CALENDLY_URL — keeping them in sync avoids confusion.
 	calendlyUrl: 'https://calendly.com/mario4-belmonte/tutoring-session'
 };
 

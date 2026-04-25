@@ -71,7 +71,14 @@
 				<div class="calendly-placeholder">
 					<p>
 						Calendly embed will appear here after you set <code>PUBLIC_CALENDLY_URL</code> in your
-						environment. See the <a href="{base}/../README.md">README</a> for setup instructions.
+						environment. See the
+						<a
+							href="https://github.com/Qrytics/AiTutoring#8-calendly-setup"
+							target="_blank"
+							rel="noopener noreferrer"
+						>
+							README
+						</a> for setup instructions.
 					</p>
 					<a
 						href="https://calendly.com"
