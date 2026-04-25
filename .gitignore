@@ -1,0 +1,15 @@
+node_modules
+.svelte-kit
+.vercel
+build
+dist
+
+# environment files — never commit secrets
+.env
+.env.local
+.env.*.local
+
+# editor / OS artefacts
+.DS_Store
+Thumbs.db
+.vscode/settings.json

@@ -1,0 +1,10 @@
+{
+	"buildCommand": "npm run build --workspace=apps/web",
+	"outputDirectory": "apps/web/.vercel/output",
+	"installCommand": "npm install",
+	"framework": null,
+	"rewrites": [
+		{ "source": "/tutoring", "destination": "/" },
+		{ "source": "/tutoring/(.*)", "destination": "/$1" }
+	]
+}
