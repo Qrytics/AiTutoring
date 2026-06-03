@@ -1,12 +1,59 @@
 <script lang="ts">
 	import { base } from '$app/paths';
+	import { onMount } from 'svelte';
 	import { tutor, pricingTiers } from '$lib/data/tutor';
 
 	let checkoutLoading = $state<string | null>(null);
 	let checkoutError = $state<string | null>(null);
 	let emailInput = $state('');
+	let bookingId = $state<string | null>(null);
+	let slotSummary = $state<string | null>(null);
+
+	const isReadyForCheckout = $derived(Boolean(bookingId));
+
+	function readBookingContextFromStorage() {
+		const raw = localStorage.getItem('reserved-booking');
+		if (!raw) return;
+		try {
+			const saved = JSON.parse(raw) as {
+				bookingId?: string;
+				slotStart?: string;
+				slotEnd?: string;
+			};
+			if (!saved.bookingId || !saved.slotStart || !saved.slotEnd) return;
+
+			if (!bookingId) {
+				bookingId = saved.bookingId;
+			}
+
+			const start = new Date(saved.slotStart);
+			const end = new Date(saved.slotEnd);
+			slotSummary = `${start.toLocaleDateString()} ${start.toLocaleTimeString([], {
+				hour: 'numeric',
+				minute: '2-digit'
+			})} - ${end.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+		} catch {
+			// Ignore corrupted local storage values.
+		}
+	}
+
+	onMount(() => {
+		const params = new URLSearchParams(window.location.search);
+		bookingId = params.get('bookingId');
+		readBookingContextFromStorage();
+	});
 
 	async function startCheckout(tierId: string) {
+		if (!bookingId) {
+			checkoutError = 'Start from the booking page and reserve a time slot first.';
+			return;
+		}
+
+		if (tierId !== 'single') {
+			checkoutError = 'Only single sessions are enabled in native booking right now.';
+			return;
+		}
+
 		checkoutLoading = tierId;
 		checkoutError = null;
 		try {
@@ -15,6 +62,7 @@
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					sessionType: tierId,
+					bookingId,
 					customerEmail: emailInput.trim() || undefined
 				})
 			});
@@ -39,10 +87,24 @@
 	<div class="page__inner">
 		<a href="{base}/book" class="back-link">← back to scheduling</a>
 
-		<h1 class="page-title">Choose your session type</h1>
+		<h1 class="page-title">Confirm and Pay</h1>
 		<p class="page-lead">
-			Select a plan below. You'll be redirected to Stripe's secure hosted checkout page.
+			You already picked a time. Confirm your plan and finish payment on Stripe's secure checkout.
 		</p>
+
+		{#if slotSummary}
+			<div class="booking-summary">
+				<p class="booking-summary__label">Reserved slot</p>
+				<p>{slotSummary}</p>
+			</div>
+		{/if}
+
+		{#if !isReadyForCheckout}
+			<p class="error-msg" role="alert">
+				No active booking found. Go back to <a href="{base}/book">Book a Session</a> to reserve a
+				time first.
+			</p>
+		{/if}
 
 		<!-- Optional email pre-fill -->
 		<div class="email-field">
@@ -63,9 +125,13 @@
 
 		<div class="pricing-grid">
 			{#each pricingTiers as tier}
+				{@const disabledTier = tier.id !== 'single'}
 				<div class="pricing-card" class:pricing-card--popular={tier.popular}>
 					{#if tier.popular}
 						<span class="popular-badge">most popular</span>
+					{/if}
+					{#if disabledTier}
+						<span class="coming-soon-badge">native scheduling soon</span>
 					{/if}
 					<div class="pricing-card__header">
 						<h2 class="pricing-card__name">{tier.name}</h2>
@@ -86,10 +152,14 @@
 					<button
 						class="btn btn--primary pricing-card__cta"
 						class:btn--loading={checkoutLoading === tier.id}
-						disabled={checkoutLoading !== null}
+						disabled={checkoutLoading !== null || disabledTier || !isReadyForCheckout}
 						onclick={() => startCheckout(tier.id)}
 					>
-						{checkoutLoading === tier.id ? 'Redirecting to Stripe…' : 'Pay with Stripe →'}
+						{#if disabledTier}
+							Coming soon
+						{:else}
+							{checkoutLoading === tier.id ? 'Redirecting to Stripe…' : 'Pay with Stripe →'}
+						{/if}
 					</button>
 				</div>
 			{/each}
@@ -189,6 +259,24 @@
 		font-size: 0.85rem;
 	}
 
+	.booking-summary {
+		margin-bottom: 1.2rem;
+		padding: 0.9rem 1rem;
+		border: 1px solid rgba(54, 242, 194, 0.35);
+		background: rgba(54, 242, 194, 0.06);
+		font-size: 0.88rem;
+		color: var(--muted);
+	}
+
+	.booking-summary__label {
+		font-size: 0.72rem;
+		font-family: var(--font-mono);
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--accent);
+		margin-bottom: 0.2rem;
+	}
+
 	/* Pricing grid */
 	.pricing-grid {
 		display: grid;
@@ -222,6 +310,19 @@
 		text-transform: uppercase;
 		background: var(--accent);
 		color: var(--bg);
+		padding: 0.15rem 0.55rem;
+		font-family: var(--font-mono);
+	}
+
+	.coming-soon-badge {
+		position: absolute;
+		top: -1px;
+		left: 1.25rem;
+		font-size: 0.7rem;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		background: rgba(222, 232, 255, 0.18);
+		color: var(--muted);
 		padding: 0.15rem 0.55rem;
 		font-family: var(--font-mono);
 	}

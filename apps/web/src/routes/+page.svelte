@@ -8,31 +8,6 @@
 	function toggleFaq(i: number) {
 		openFaqIndex = openFaqIndex === i ? null : i;
 	}
-
-	// Checkout redirect
-	let checkoutLoading = $state<string | null>(null);
-	let checkoutError = $state<string | null>(null);
-
-	async function startCheckout(tierId: string) {
-		checkoutLoading = tierId;
-		checkoutError = null;
-		try {
-			const res = await fetch(`${base}/api/create-checkout-session`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ sessionType: tierId })
-			});
-			if (!res.ok) {
-				const err = await res.json().catch(() => ({ message: 'Unknown error' }));
-				throw new Error(err.message ?? 'Checkout failed');
-			}
-			const { url } = await res.json();
-			window.location.href = url;
-		} catch (e) {
-			checkoutError = e instanceof Error ? e.message : 'Something went wrong. Please try again.';
-			checkoutLoading = null;
-		}
-	}
 </script>
 
 <svelte:head>
@@ -96,15 +71,16 @@
 <section class="section" id="pricing" aria-label="Pricing">
 	<div class="section__inner">
 		<h2 class="section-title">pricing</h2>
-		<p class="section-lead">Simple, transparent pricing. No subscriptions unless you want them.</p>
-		{#if checkoutError}
-			<p class="error-msg" role="alert">{checkoutError}</p>
-		{/if}
+		<p class="section-lead">Simple, transparent pricing. Book your time first, then pay.</p>
 		<div class="pricing-grid">
 			{#each pricingTiers as tier}
+				{@const disabledTier = tier.id !== 'single'}
 				<div class="pricing-card" class:pricing-card--popular={tier.popular}>
 					{#if tier.popular}
 						<span class="popular-badge">most popular</span>
+					{/if}
+					{#if disabledTier}
+						<span class="coming-soon-badge">native scheduling soon</span>
 					{/if}
 					<div class="pricing-card__header">
 						<h3 class="pricing-card__name">{tier.name}</h3>
@@ -122,20 +98,19 @@
 							<li><span class="feature-check" aria-hidden="true">✓</span> {feature}</li>
 						{/each}
 					</ul>
-					<button
+					<a
 						class="btn btn--primary pricing-card__cta"
-						class:btn--loading={checkoutLoading === tier.id}
-						disabled={checkoutLoading !== null}
-						onclick={() => startCheckout(tier.id)}
+						href={disabledTier ? '#' : `${base}/book`}
+						aria-disabled={disabledTier}
 					>
-						{checkoutLoading === tier.id ? 'Redirecting…' : 'Get Started →'}
-					</button>
+						{disabledTier ? 'Coming soon' : 'Book this session →'}
+					</a>
 				</div>
 			{/each}
 		</div>
 		<p class="pricing-note">
-			Prefer to schedule first?
-			<a href="{base}/book">Book your time →</a> then pay.
+			Single sessions are now <strong>$30/hour</strong>. Native scheduling for bundle and monthly
+			plans is coming soon.
 		</p>
 	</div>
 </section>
@@ -300,9 +275,9 @@
 		font-size: 1rem;
 	}
 
-	.btn--loading {
-		opacity: 0.6;
-		cursor: wait;
+	.btn[aria-disabled='true'] {
+		opacity: 0.55;
+		pointer-events: none;
 	}
 
 	.btn:disabled {
@@ -478,6 +453,19 @@
 		font-family: var(--font-mono);
 	}
 
+	.coming-soon-badge {
+		position: absolute;
+		top: -1px;
+		left: 1.25rem;
+		font-size: 0.7rem;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		background: rgba(222, 232, 255, 0.18);
+		color: var(--muted);
+		padding: 0.15rem 0.55rem;
+		font-family: var(--font-mono);
+	}
+
 	.pricing-card__header {
 		margin-bottom: 0.75rem;
 	}
@@ -548,21 +536,6 @@
 		font-size: 0.85rem;
 		color: var(--muted);
 		text-align: center;
-	}
-
-	.pricing-note a {
-		color: var(--accent);
-		text-decoration: none;
-		border-bottom: 1px solid rgba(54, 242, 194, 0.3);
-	}
-
-	.error-msg {
-		margin-bottom: 1rem;
-		padding: 0.65rem 1rem;
-		background: rgba(255, 91, 87, 0.08);
-		border: 1px solid rgba(255, 91, 87, 0.35);
-		color: #ff7b78;
-		font-size: 0.85rem;
 	}
 
 	/* ── FAQ ────────────────────────────────────────────── */

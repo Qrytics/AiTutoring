@@ -22,6 +22,20 @@
 				}).format(data.session.amountTotal / 100)
 			: null
 	);
+
+	const bookingTime = $derived(
+		data.booking
+			? `${new Date(data.booking.slotStart).toLocaleDateString()} ${new Date(
+					data.booking.slotStart
+			  ).toLocaleTimeString([], {
+					hour: 'numeric',
+					minute: '2-digit'
+			  })} - ${new Date(data.booking.slotEnd).toLocaleTimeString([], {
+					hour: 'numeric',
+					minute: '2-digit'
+			  })}`
+			: null
+	);
 </script>
 
 <svelte:head>
@@ -57,6 +71,12 @@
 							<dd>{amountFormatted}</dd>
 						</div>
 					{/if}
+					{#if bookingTime}
+						<div class="detail-row">
+							<dt>Scheduled time</dt>
+							<dd>{bookingTime}</dd>
+						</div>
+					{/if}
 				</dl>
 			{:else}
 				<p class="success-desc">
@@ -68,8 +88,8 @@
 				<h2 class="next-steps__heading">What happens next</h2>
 				<ol class="next-steps__list">
 					<li>You'll receive a payment receipt from Stripe.</li>
-					<li>You'll also get a Calendly calendar invite for your session.</li>
-					<li>Join the video call at the scheduled time — I'll have everything ready.</li>
+					<li>Your scheduled time is confirmed above on this page.</li>
+					<li>Join the video call at the scheduled time and we'll start right away.</li>
 				</ol>
 			</div>
 

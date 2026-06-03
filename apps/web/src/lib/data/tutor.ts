@@ -10,11 +10,7 @@ export const tutor = {
 	email: 'mario4.belmonte@gmail.com',
 	github: 'https://github.com/Qrytics',
 	linkedin: 'https://www.linkedin.com/in/mario-belmonte/',
-	portfolioUrl: 'https://mario-belmonte.com',
-	// Fallback Calendly URL used when PUBLIC_CALENDLY_URL env var is not set.
-	// In production the env var takes precedence (see routes/book/+page.svelte).
-	// Update this value OR set PUBLIC_CALENDLY_URL — keeping them in sync avoids confusion.
-	calendlyUrl: 'https://calendly.com/mario4-belmonte/tutoring-session'
+	portfolioUrl: 'https://mario-belmonte.com'
 };
 
 // ─── Subjects ─────────────────────────────────────────────────────────────────
@@ -88,8 +84,8 @@ export const pricingTiers: PricingTier[] = [
 	{
 		id: 'single',
 		name: 'Single Session',
-		price: 60,
-		unit: '/hr',
+		price: 30,
+		unit: '/hour',
 		description: 'One 60-minute session. Perfect for getting unstuck on a specific problem.',
 		features: [
 			'60-minute live video call',
@@ -149,13 +145,13 @@ export const steps: Step[] = [
 		number: '01',
 		title: 'Pick a time',
 		description:
-			"Choose a slot that works for you on the Calendly scheduler. You'll get a calendar invite and a reminder before the session."
+			'Choose an available time slot directly on this site. Your selected slot is held for 15 minutes while you complete checkout.'
 	},
 	{
 		number: '02',
 		title: 'Complete payment',
 		description:
-			"After booking, pay securely via Stripe Checkout. You'll receive a receipt and booking confirmation by email."
+			"Pay securely through Stripe Checkout. You'll get a Stripe receipt and see your booking confirmation immediately."
 	},
 	{
 		number: '03',
@@ -196,16 +192,16 @@ export const faq: FaqItem[] = [
 	{
 		question: 'What if I need to reschedule?',
 		answer:
-			'You can reschedule or cancel up to 24 hours before the session at no charge, directly through the Calendly link.'
+			'You can request a reschedule or cancellation at least 24 hours before your session at no charge by emailing me.'
 	},
 	{
 		question: 'How do payments work?',
 		answer:
-			"After booking a time on Calendly, you'll come back here to pay. Payments are processed securely via Stripe Checkout — your card details are never stored by this site."
+			"After choosing a time on this site, you'll complete payment through Stripe Checkout. Your card details are never stored by this site."
 	},
 	{
 		question: 'What video platform do we use?',
 		answer:
-			"Google Meet is the default, but I'm happy to use Zoom, Discord, or whatever works best for you. Just mention your preference when booking."
+			"Google Meet is the default, but I'm happy to use Zoom, Discord, or whatever works best for you. Mention your preference in your booking details or by email."
 	}
 ];
