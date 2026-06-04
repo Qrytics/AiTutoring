@@ -8,6 +8,7 @@
 	let emailInput = $state('');
 	let bookingId = $state<string | null>(null);
 	let slotSummary = $state<string | null>(null);
+	const singleTier = pricingTiers.find((tier) => tier.id === 'single');
 
 	const isReadyForCheckout = $derived(Boolean(bookingId));
 
@@ -123,47 +124,41 @@
 			<p class="error-msg" role="alert">{checkoutError}</p>
 		{/if}
 
-		<div class="pricing-grid">
-			{#each pricingTiers as tier}
-				{@const disabledTier = tier.id !== 'single'}
-				<div class="pricing-card" class:pricing-card--popular={tier.popular}>
-					{#if tier.popular}
+		{#if singleTier}
+			<div class="pricing-grid">
+				<div class="pricing-card" class:pricing-card--popular={singleTier.popular}>
+					{#if singleTier.popular}
 						<span class="popular-badge">most popular</span>
 					{/if}
-					{#if disabledTier}
-						<span class="coming-soon-badge">native scheduling soon</span>
-					{/if}
 					<div class="pricing-card__header">
-						<h2 class="pricing-card__name">{tier.name}</h2>
+						<h2 class="pricing-card__name">{singleTier.name}</h2>
 						<div class="pricing-card__price">
-							<span class="pricing-card__amount">${tier.price}</span>
-							<span class="pricing-card__unit">{tier.unit}</span>
+							<span class="pricing-card__amount">${singleTier.price}</span>
+							<span class="pricing-card__unit">{singleTier.unit}</span>
 						</div>
-						{#if tier.pricePerHour}
-							<p class="pricing-card__per-hr">${tier.pricePerHour}/hr · saves ${tier.savings}</p>
+						{#if singleTier.pricePerHour}
+							<p class="pricing-card__per-hr">
+								${singleTier.pricePerHour}/hr · saves ${singleTier.savings}
+							</p>
 						{/if}
 					</div>
-					<p class="pricing-card__desc">{tier.description}</p>
+					<p class="pricing-card__desc">{singleTier.description}</p>
 					<ul class="pricing-card__features">
-						{#each tier.features as feature}
+						{#each singleTier.features as feature}
 							<li><span class="feature-check" aria-hidden="true">✓</span> {feature}</li>
 						{/each}
 					</ul>
 					<button
 						class="btn btn--primary pricing-card__cta"
-						class:btn--loading={checkoutLoading === tier.id}
-						disabled={checkoutLoading !== null || disabledTier || !isReadyForCheckout}
-						onclick={() => startCheckout(tier.id)}
+						class:btn--loading={checkoutLoading === singleTier.id}
+						disabled={checkoutLoading !== null || !isReadyForCheckout}
+						onclick={() => startCheckout(singleTier.id)}
 					>
-						{#if disabledTier}
-							Coming soon
-						{:else}
-							{checkoutLoading === tier.id ? 'Redirecting to Stripe…' : 'Pay with Stripe →'}
-						{/if}
+						{checkoutLoading === singleTier.id ? 'Redirecting to Stripe…' : 'Pay with Stripe →'}
 					</button>
 				</div>
-			{/each}
-		</div>
+			</div>
+		{/if}
 
 		<div class="security-note">
 			<span class="security-note__icon" aria-hidden="true">🔒</span>

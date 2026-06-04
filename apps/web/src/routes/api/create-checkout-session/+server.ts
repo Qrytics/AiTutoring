@@ -1,19 +1,13 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { stripe } from '$lib/server/stripe';
-import {
-	STRIPE_PRICE_ID_SINGLE,
-	STRIPE_PRICE_ID_BUNDLE,
-	STRIPE_PRICE_ID_MONTHLY
-} from '$env/static/private';
+import { STRIPE_PRICE_ID_SINGLE } from '$env/static/private';
 import { BASE_PATH } from '$lib/config';
 import { supabase } from '$lib/server/supabase';
 
-// Map UI tier IDs → Stripe Price IDs (configured in .env / Vercel environment variables).
+// Native booking checkout is intentionally limited to single sessions.
 const PRICE_IDS: Record<string, string> = {
-	single: STRIPE_PRICE_ID_SINGLE,
-	bundle: STRIPE_PRICE_ID_BUNDLE,
-	monthly: STRIPE_PRICE_ID_MONTHLY
+	single: STRIPE_PRICE_ID_SINGLE
 };
 
 export const POST: RequestHandler = async ({ request, url }) => {
@@ -37,7 +31,7 @@ export const POST: RequestHandler = async ({ request, url }) => {
 
 	const priceId = PRICE_IDS[sessionType];
 	if (!priceId) {
-		throw error(400, `Unknown sessionType: "${sessionType}". Must be single, bundle, or monthly.`);
+		throw error(400, `Unknown sessionType: "${sessionType}". Must be single.`);
 	}
 
 	if (sessionType !== 'single') {
