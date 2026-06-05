@@ -286,6 +286,33 @@
 		pointer-events: none;
 	}
 
+	:global([data-theme='light']) .header__content::before {
+		width: min(96ch, 94%);
+		height: 82%;
+		background: radial-gradient(
+			ellipse at center,
+			rgb(255, 255, 255) 100%,
+			rgba(247, 253, 251, 0.92) 90%,
+			rgba(228, 247, 243, 0.58) 8%,
+			rgba(210, 240, 234, 0.22) 9%,
+			rgba(255, 255, 255, 0) 10%
+		);
+		filter: blur(100px);
+	}
+
+	:global([data-theme='light']) .header__tagline::before {
+		width: calc(100% + 4.25rem);
+		height: calc(100% + 1.5rem);
+		background: radial-gradient(
+			ellipse at center,
+			rgba(255, 255, 255, 0.98) 100%,
+			rgba(240, 252, 248, 0.78) 5%,
+			rgba(223, 247, 241, 0.32) 8%,
+			rgba(255, 255, 255, 0) 100%
+		);
+		filter: blur(100px);
+	}
+
 	.header__description {
 		position: relative;
 		margin: 1rem 0 0;
@@ -399,6 +426,32 @@
 	.hero-action--secondary:focus-visible {
 		border-color: rgba(222, 232, 255, 0.3);
 		color: var(--text);
+	}
+
+	:global([data-theme='light']) .hero-action {
+		background: color-mix(in srgb, var(--clr-light-a0) 88%, var(--clr-primary-a0) 12%);
+		border-color: color-mix(in srgb, var(--clr-primary-a0) 38%, var(--clr-surface-tonal-a10));
+		color: var(--clr-primary-a40);
+	}
+
+	:global([data-theme='light']) .hero-action:hover,
+	:global([data-theme='light']) .hero-action:focus-visible {
+		background: color-mix(in srgb, var(--clr-light-a0) 82%, var(--clr-primary-a0) 18%);
+		border-color: color-mix(in srgb, var(--clr-primary-a0) 52%, var(--clr-surface-tonal-a10));
+		color: var(--clr-primary-a50);
+	}
+
+	:global([data-theme='light']) .hero-action--secondary {
+		background: var(--clr-light-a0);
+		border-color: var(--clr-surface-tonal-a10);
+		color: var(--clr-primary-a40);
+	}
+
+	:global([data-theme='light']) .hero-action--secondary:hover,
+	:global([data-theme='light']) .hero-action--secondary:focus-visible {
+		background: color-mix(in srgb, var(--clr-light-a0) 92%, var(--clr-primary-a0) 8%);
+		border-color: color-mix(in srgb, var(--clr-primary-a0) 32%, var(--clr-surface-tonal-a10));
+		color: var(--clr-primary-a50);
 	}
 
 	.link {
