@@ -45,9 +45,18 @@ export const subjects: Subject[] = [
 		icon: '⬛'
 	},
 	{
-		title: 'Electrical Engineering',
-		description: 'Basic circuit diagram analysis.',
-		tags: ['Circuit Analysis'],
+		title: 'Electrical/Software Engineering',
+		description:
+			'Basic circuit diagram analysis plus guidance on college planning, classes to take, career paths, target companies, and the application/interview process.',
+		tags: [
+			'Circuit Analysis',
+			'College Advice',
+			'Class Planning',
+			'Career Advice',
+			'Target Companies',
+			'Applications',
+			'Interviews'
+		],
 		icon: '⚡'
 	}
 ];

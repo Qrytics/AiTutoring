@@ -249,14 +249,10 @@
 		reservedBooking = null;
 	}
 
-	async function handleMonthChange() {
-		if (!selectedMonthKey) {
-			selectedDayKey = null;
-			selectedSlotId = null;
-			return;
-		}
-
-		await loadSlotsForMonth(selectedMonthKey);
+	async function selectMonth(monthKey: string) {
+		if (monthKey === selectedMonthKey) return;
+		selectedMonthKey = monthKey;
+		await loadSlotsForMonth(monthKey);
 	}
 
 	function selectHourSlot(slot: Slot | null) {
@@ -352,11 +348,20 @@
 				<div class="picker-grid">
 					<section class="picker-block" aria-label="Choose month">
 						<p class="picker-title">1. Choose month</p>
-						<select class="month-select" bind:value={selectedMonthKey} onchange={handleMonthChange}>
+						<div class="month-list" role="listbox" aria-label="Available months">
 							{#each monthOptions as month}
-								<option value={month.key}>{month.label}</option>
+								<button
+									type="button"
+									class="month-btn"
+									class:month-btn--selected={selectedMonthKey === month.key}
+									role="option"
+									aria-selected={selectedMonthKey === month.key}
+									onclick={() => selectMonth(month.key)}
+								>
+									{month.label}
+								</button>
 							{/each}
-						</select>
+						</div>
 					</section>
 
 					<section class="picker-block" aria-label="Choose day">
@@ -573,13 +578,36 @@
 		color: var(--accent);
 	}
 
-	.month-select {
-		background: var(--panel);
-		border: 1px solid var(--border);
-		color: var(--text);
+	.month-list {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+		max-height: 26rem;
+		overflow-y: auto;
+		padding-right: 0.1rem;
+	}
+
+	.month-btn {
+		text-align: left;
 		padding: 0.55rem 0.65rem;
+		border: 1px solid var(--border);
+		background: transparent;
+		color: var(--muted);
 		font-family: var(--font-mono);
 		font-size: 0.85rem;
+		cursor: pointer;
+		transition: border-color 0.14s, background-color 0.14s, color 0.14s;
+	}
+
+	.month-btn:hover {
+		border-color: rgba(54, 242, 194, 0.45);
+		color: var(--text);
+	}
+
+	.month-btn--selected {
+		border-color: rgba(54, 242, 194, 0.7);
+		background: rgba(54, 242, 194, 0.12);
+		color: var(--accent);
 	}
 
 	.calendar-headings {
@@ -716,8 +744,6 @@
 		font-size: 0.85rem;
 	}
 
-	.btn {
-
 	.hours-note {
 		font-size: 0.62rem;
 		line-height: 1.35;
@@ -730,8 +756,14 @@
 		background: var(--panel);
 	}
 
-	[data-theme='light'] .month-select {
+	[data-theme='light'] .month-btn {
 		background: var(--bg);
+		color: var(--muted);
+	}
+
+	[data-theme='light'] .month-btn--selected {
+		background: color-mix(in srgb, var(--bg) 88%, var(--accent) 12%);
+		color: var(--accent);
 	}
 
 	[data-theme='light'] .calendar-day:disabled {
@@ -749,6 +781,8 @@
 	[data-theme='light'] .slot-btn--unavailable:disabled {
 		opacity: 1;
 	}
+
+	.btn {
 		display: inline-block;
 		padding: 0.6rem 1.2rem;
 		font-family: var(--font-mono);
