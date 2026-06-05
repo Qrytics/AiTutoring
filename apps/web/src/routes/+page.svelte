@@ -30,7 +30,6 @@
 	</div>
 </section>
 
-<!-- ═══════════════════════════════════════════════ PROJECT BUILDING CTA -->
 <!-- ═══════════════════════════════════════════════ SUBJECTS -->
 <section class="section" id="subjects" aria-label="Subjects">
 	<div class="section__inner">
@@ -49,7 +48,6 @@
 				</div>
 			{/each}
 			<article class="card subject-card subject-card--project">
-				<span class="subject-card__icon" aria-hidden="true">⚙</span>
 				<h3 class="subject-card__title">
 					Learn how to make a website or create your dream project!
 				</h3>
@@ -62,6 +60,22 @@
 					We also cover modern dev tools and AI-first workflows including VS Code, Cursor,
 					Copilot, ChatGPT, Claude, Gemini, Codex, and agent-driven development.
 				</p>
+				<div class="subject-card__tags subject-card__tags--project" aria-label="Topics covered">
+					<span class="tag">GitHub Issues</span>
+					<span class="tag">GitHub Actions</span>
+					<span class="tag">Deployment</span>
+					<span class="tag">CI/CD</span>
+					<span class="tag">File Architecture</span>
+					<span class="tag">Best Practices</span>
+					<span class="tag">VS Code</span>
+					<span class="tag">Cursor</span>
+					<span class="tag">Copilot</span>
+					<span class="tag">ChatGPT</span>
+					<span class="tag">Claude</span>
+					<span class="tag">Gemini</span>
+					<span class="tag">Codex</span>
+					<span class="tag">Agents</span>
+				</div>
 			</article>
 		</div>
 	</div>
@@ -97,7 +111,11 @@
 			{/each}
 		</div>
 	</div>
-</section>
+			{/each}
+			<article class="card subject-card subject-card--project">
+				<h3 class="subject-card__title">
+				Learn how to make a website or create your dream project!
+				</h3>
 
 <!-- ═══════════════════════════════════════════════ PRICING -->
 <section class="section" id="pricing" aria-label="Pricing">
@@ -135,14 +153,11 @@
 						href={disabledTier ? '#' : `${base}/book`}
 						aria-disabled={disabledTier}
 					>
-						{disabledTier ? 'Coming soon' : 'Book this session →'}
+						{disabledTier ? 'Coming soon' : 'Book a session'}
 					</a>
 				</div>
 			{/each}
 		</div>
-		<p class="pricing-note">
-			Single sessions are <strong>$20/hour</strong>.
-		</p>
 	</div>
 </section>
 
@@ -296,15 +311,11 @@
 
 	/* ── Wide project CTA ─────────────────────────────── */
 	.subject-card--project {
-		grid-column: 1 / span 2;
-		border-color: rgba(54, 242, 194, 0.32);
-		background: linear-gradient(
-			90deg,
-			rgba(54, 242, 194, 0.06),
-			var(--panel) 18%,
-			var(--panel) 82%,
-			rgba(54, 242, 194, 0.06)
-		);
+		grid-column: 1 / -1;
+		justify-self: center;
+		width: min(100%, 56rem);
+		border-color: var(--border);
+		background: var(--panel);
 	}
 
 	.subject-card--project .subject-card__title {
@@ -316,15 +327,13 @@
 		margin-top: 0.5rem;
 	}
 
+	.subject-card__tags--project {
+		margin-top: 0.2rem;
+	}
+
 	[data-theme='light'] .subject-card--project {
-		border-color: rgba(13, 148, 136, 0.32);
-		background: linear-gradient(
-			90deg,
-			rgba(13, 148, 136, 0.08),
-			var(--panel) 18%,
-			var(--panel) 82%,
-			rgba(13, 148, 136, 0.08)
-		);
+		border-color: var(--border);
+		background: var(--panel);
 	}
 
 	.btn:disabled {
