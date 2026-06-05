@@ -434,7 +434,7 @@
 </script>
 
 <svelte:head>
-	<title>Book a Session — {tutor.name}</title>
+	<title>Tutoring</title>
 </svelte:head>
 
 <div class="page">

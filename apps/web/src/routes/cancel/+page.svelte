@@ -4,7 +4,7 @@
 </script>
 
 <svelte:head>
-	<title>Payment Cancelled — {tutor.name}</title>
+	<title>Tutoring</title>
 </svelte:head>
 
 <div class="page">

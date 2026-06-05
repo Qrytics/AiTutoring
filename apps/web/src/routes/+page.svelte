@@ -11,7 +11,7 @@
 </script>
 
 <svelte:head>
-	<title>{tutor.name} — 1-on-1 Technical Tutoring</title>
+	<title>Tutoring</title>
 </svelte:head>
 
 <!-- ═══════════════════════════════════════════════ HERO -->
@@ -30,6 +30,7 @@
 	</div>
 </section>
 
+<!-- ═══════════════════════════════════════════════ PROJECT BUILDING CTA -->
 <!-- ═══════════════════════════════════════════════ SUBJECTS -->
 <section class="section" id="subjects" aria-label="Subjects">
 	<div class="section__inner">
@@ -47,6 +48,21 @@
 					</div>
 				</div>
 			{/each}
+			<article class="card subject-card subject-card--project">
+				<span class="subject-card__icon" aria-hidden="true">⚙</span>
+				<h3 class="subject-card__title">
+					Learn how to make a website or create your dream project!
+				</h3>
+				<p class="subject-card__desc">
+					I teach practical end-to-end project building: GitHub workflows (issues, pull requests,
+					and GitHub Actions), deployment and CI/CD pipelines, clean file architecture, and common
+					engineering practices used by real teams.
+				</p>
+				<p class="subject-card__desc">
+					We also cover modern dev tools and AI-first workflows including VS Code, Cursor,
+					Copilot, ChatGPT, Claude, Gemini, Codex, and agent-driven development.
+				</p>
+			</article>
 		</div>
 	</div>
 </section>
@@ -276,6 +292,39 @@
 	.btn[aria-disabled='true'] {
 		opacity: 0.55;
 		pointer-events: none;
+	}
+
+	/* ── Wide project CTA ─────────────────────────────── */
+	.subject-card--project {
+		grid-column: 1 / span 2;
+		border-color: rgba(54, 242, 194, 0.32);
+		background: linear-gradient(
+			90deg,
+			rgba(54, 242, 194, 0.06),
+			var(--panel) 18%,
+			var(--panel) 82%,
+			rgba(54, 242, 194, 0.06)
+		);
+	}
+
+	.subject-card--project .subject-card__title {
+		font-size: clamp(1rem, 2.1vw, 1.25rem);
+		line-height: 1.35;
+	}
+
+	.subject-card--project .subject-card__desc + .subject-card__desc {
+		margin-top: 0.5rem;
+	}
+
+	[data-theme='light'] .subject-card--project {
+		border-color: rgba(13, 148, 136, 0.32);
+		background: linear-gradient(
+			90deg,
+			rgba(13, 148, 136, 0.08),
+			var(--panel) 18%,
+			var(--panel) 82%,
+			rgba(13, 148, 136, 0.08)
+		);
 	}
 
 	.btn:disabled {
@@ -664,5 +713,50 @@
 		line-height: 1.7;
 		max-width: 52ch;
 		margin: 0 auto 1.75rem;
+	}
+
+	@media (max-width: 980px) {
+		.subject-card--project {
+			grid-column: auto;
+		}
+
+		.section {
+			padding: clamp(2rem, 5vw, 3rem) 0;
+		}
+	}
+
+	@media (max-width: 640px) {
+		.hero__content {
+			padding: 2rem 1.1rem 2.4rem;
+		}
+
+		.hero__actions {
+			width: 100%;
+			flex-direction: column;
+		}
+
+		.hero__actions .btn {
+			width: 100%;
+			text-align: center;
+		}
+
+		.subjects-grid,
+		.resources-grid,
+		.steps-grid,
+		.pricing-grid {
+			grid-template-columns: 1fr;
+		}
+
+		.section__inner {
+			padding: 0 1rem;
+		}
+
+		.faq-item__trigger {
+			padding: 0.85rem 0.95rem;
+		}
+
+		.faq-item__answer {
+			padding: 0.8rem 0.95rem 1rem;
+		}
 	}
 </style>

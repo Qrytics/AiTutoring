@@ -15,7 +15,7 @@
 	<meta property="og:url" content="https://mario-belmonte.com/tutoring" />
 	<meta name="twitter:card" content="summary" />
 	<meta name="theme-color" content="#0b0e12" />
-	<title>{tutor.name} — Tutoring</title>
+	<title>Tutoring</title>
 </svelte:head>
 
 <Nav />
