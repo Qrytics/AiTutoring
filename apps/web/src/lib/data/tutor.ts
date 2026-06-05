@@ -6,7 +6,7 @@ export const tutor = {
 	tagline: '1-on-1 Technical Tutoring',
 	headline: 'Learn code, circuits, and math — with a CMU engineer.',
 	description:
-		"I'm a graduating Electrical & Computer Engineering student at Carnegie Mellon. I tutor web development, algorithms, embedded systems, and engineering math through focused, live 1-on-1 sessions.",
+		"I'm a graduating Electrical & Computer Engineering student at Carnegie Mellon. I tutor web development, programming fundamentals, system design choices, and basic circuit diagram analysis through focused, live 1-on-1 sessions.",
 	email: 'mario4.belmonte@gmail.com',
 	github: 'https://github.com/Qrytics',
 	linkedin: 'https://www.linkedin.com/in/mario-belmonte/',
@@ -38,31 +38,36 @@ export const subjects: Subject[] = [
 		icon: '⟨/⟩'
 	},
 	{
-		title: 'Backend & Systems',
-		description: 'REST APIs, SQL/NoSQL databases, Docker, Linux, and scalable backend design.',
-		tags: ['FastAPI', 'REST', 'PostgreSQL', 'Docker', 'Linux'],
+		title: 'System Design',
+		description:
+			'I teach the basics of system design choices: tradeoffs, architecture patterns, scalability, reliability, and data modeling.',
+		tags: ['Tradeoffs', 'Architecture', 'Scalability', 'Reliability', 'Data Modeling'],
 		icon: '⬛'
 	},
 	{
 		title: 'Electrical Engineering',
-		description:
-			'Circuit analysis, digital logic, embedded systems, FPGA design, and microcontrollers.',
-		tags: ['Circuits', 'Digital Logic', 'FPGA', 'Embedded', 'SystemVerilog'],
+		description: 'Basic circuit diagram analysis.',
+		tags: ['Circuit Analysis'],
 		icon: '⚡'
+	}
+];
+
+export interface Resource {
+	title: string;
+	url: string;
+	description: string;
+}
+
+export const resources: Resource[] = [
+	{
+		title: 'LeetCode',
+		url: 'https://leetcode.com',
+		description: 'Practice coding interview problems with curated topic sets and difficulty filters.'
 	},
 	{
-		title: 'Machine Learning',
-		description:
-			'PyTorch fundamentals, training neural networks, and applied ML/computer-vision projects.',
-		tags: ['PyTorch', 'Python', 'Neural Nets', 'Computer Vision'],
-		icon: '◈'
-	},
-	{
-		title: 'Engineering Math',
-		description:
-			'Calculus, linear algebra, discrete mathematics, and signals & systems.',
-		tags: ['Calculus', 'Linear Algebra', 'Discrete Math', 'Signals'],
-		icon: '∑'
+		title: 'AI Engineering From Scratch',
+		url: 'https://github.com/rohitg00/ai-engineering-from-scratch',
+		description: 'A practical GitHub resource for building AI engineering fundamentals from the ground up.'
 	}
 ];
 

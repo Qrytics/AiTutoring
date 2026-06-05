@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { base } from '$app/paths';
 	import WaveCheckeredBackground from '$lib/components/WaveCheckeredBackground.svelte';
-	import { tutor, subjects, pricingTiers, steps, faq } from '$lib/data/tutor';
+	import { tutor, subjects, resources, pricingTiers, steps, faq } from '$lib/data/tutor';
 
 	// FAQ accordion state — tracks which item is open
 	let openFaqIndex = $state<number | null>(null);
@@ -46,6 +46,22 @@
 						{/each}
 					</div>
 				</div>
+			{/each}
+		</div>
+	</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ FREE RESOURCES -->
+<section class="section section--alt" id="resources" aria-label="Free resources">
+	<div class="section__inner">
+		<h2 class="section-title">free resources</h2>
+		<div class="resources-grid">
+			{#each resources as resource}
+				<a class="resource-card" href={resource.url} target="_blank" rel="noreferrer noopener">
+					<h3 class="resource-card__title">{resource.title}</h3>
+					<p class="resource-card__desc">{resource.description}</p>
+					<span class="resource-card__link">Open resource →</span>
+				</a>
 			{/each}
 		</div>
 	</div>
@@ -359,6 +375,48 @@
 		border: 1px solid rgba(54, 242, 194, 0.2);
 		color: rgba(54, 242, 194, 0.85);
 		font-family: var(--font-mono);
+	}
+
+	/* ── Free resources ────────────────────────────────── */
+	.resources-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+		gap: 1rem;
+	}
+
+	.resource-card {
+		display: flex;
+		flex-direction: column;
+		gap: 0.7rem;
+		padding: 1.2rem 1.3rem;
+		text-decoration: none;
+		border: 1px solid var(--border);
+		background: var(--panel);
+		transition: border-color 0.16s, background-color 0.16s;
+	}
+
+	.resource-card:hover {
+		border-color: rgba(54, 242, 194, 0.45);
+		background: color-mix(in srgb, var(--panel) 88%, var(--accent) 12%);
+	}
+
+	.resource-card__title {
+		font-size: 1rem;
+		color: var(--text);
+	}
+
+	.resource-card__desc {
+		font-size: 0.86rem;
+		line-height: 1.6;
+		color: var(--muted);
+	}
+
+	.resource-card__link {
+		font-size: 0.78rem;
+		letter-spacing: 0.07em;
+		text-transform: uppercase;
+		font-family: var(--font-mono);
+		color: var(--accent);
 	}
 
 	/* ── Steps ──────────────────────────────────────────── */

@@ -26,7 +26,7 @@ export const GET: RequestHandler = async ({ url }) => {
 		slots = await getFutureSlotsInRange(startDate.toISOString(), endDate.toISOString());
 	} else {
 		// Fallback for older clients that do not send month boundaries.
-		slots = await getFutureSlots(400);
+		slots = await getFutureSlots(2500);
 	}
 
 	const unavailableSlotIds = await getReservedSlotIds(slots.map((slot) => slot.id));
