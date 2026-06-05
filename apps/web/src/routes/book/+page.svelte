@@ -16,23 +16,53 @@
 		reservationExpiresAt: string;
 	};
 
+	type MonthOption = {
+		key: string;
+		label: string;
+	};
+
+	type CalendarDayCell = {
+		day: number;
+		dayKey: string;
+		hasSlots: boolean;
+		isToday: boolean;
+	};
+
 	let loading = $state(true);
 	let loadError = $state<string | null>(null);
 	let reserveError = $state<string | null>(null);
 	let slots = $state<Slot[]>([]);
 	let selectedSlotId = $state<string | null>(null);
+	let selectedMonthKey = $state<string | null>(null);
+	let selectedDayKey = $state<string | null>(null);
 	let reserveLoading = $state(false);
 	let reservedBooking = $state<ReservedBooking | null>(null);
 
-	const slotGroups = $derived.by(() => {
+	const weekDayHeaders = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+	function toDayKey(date: Date): string {
+		const year = date.getFullYear();
+		const month = String(date.getMonth() + 1).padStart(2, '0');
+		const day = String(date.getDate()).padStart(2, '0');
+		return `${year}-${month}-${day}`;
+	}
+
+	function toMonthKey(date: Date): string {
+		const year = date.getFullYear();
+		const month = String(date.getMonth() + 1).padStart(2, '0');
+		return `${year}-${month}`;
+	}
+
+	function dateFromDayKey(dayKey: string): Date {
+		const [year, month, day] = dayKey.split('-').map(Number);
+		return new Date(year, month - 1, day);
+	}
+
+	const slotsByDay = $derived.by(() => {
 		const groups = new Map<string, Slot[]>();
 
 		for (const slot of slots) {
-			const dayKey = new Intl.DateTimeFormat('en-US', {
-				weekday: 'long',
-				month: 'short',
-				day: 'numeric'
-			}).format(new Date(slot.startTime));
+			const dayKey = toDayKey(new Date(slot.startTime));
 
 			if (!groups.has(dayKey)) {
 				groups.set(dayKey, []);
@@ -40,8 +70,110 @@
 			groups.get(dayKey)?.push(slot);
 		}
 
-		return Array.from(groups.entries());
+		for (const daySlots of groups.values()) {
+			daySlots.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+		}
+
+		return groups;
 	});
+
+	const monthOptions = $derived.by(() => {
+		const months = new Map<string, MonthOption>();
+
+		for (const slot of slots) {
+			const slotDate = new Date(slot.startTime);
+			const monthKey = toMonthKey(slotDate);
+
+			if (!months.has(monthKey)) {
+				months.set(monthKey, {
+					key: monthKey,
+					label: new Intl.DateTimeFormat('en-US', {
+						month: 'long',
+						year: 'numeric'
+					}).format(slotDate)
+				});
+			}
+		}
+
+		return Array.from(months.values()).sort((a, b) => a.key.localeCompare(b.key));
+	});
+
+	const availableDayKeysForMonth = $derived.by(() => {
+		if (!selectedMonthKey) return [];
+		return Array.from(slotsByDay.keys())
+			.filter((dayKey) => dayKey.startsWith(`${selectedMonthKey}-`))
+			.sort();
+	});
+
+	const selectedDaySlots = $derived.by(() => {
+		if (!selectedDayKey) return [];
+		return slotsByDay.get(selectedDayKey) ?? [];
+	});
+
+	const selectedDayLabel = $derived.by(() => {
+		if (!selectedDayKey) return null;
+		return new Intl.DateTimeFormat('en-US', {
+			weekday: 'long',
+			month: 'short',
+			day: 'numeric'
+		}).format(dateFromDayKey(selectedDayKey));
+	});
+
+	const calendarCells = $derived.by(() => {
+		if (!selectedMonthKey) return [] as Array<CalendarDayCell | null>;
+
+		const [yearStr, monthStr] = selectedMonthKey.split('-');
+		const year = Number(yearStr);
+		const monthIndex = Number(monthStr) - 1;
+
+		const firstDay = new Date(year, monthIndex, 1);
+		const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+		const startOffset = firstDay.getDay();
+
+		const cells: Array<CalendarDayCell | null> = [];
+		for (let i = 0; i < startOffset; i += 1) {
+			cells.push(null);
+		}
+
+		const todayKey = toDayKey(new Date());
+		for (let day = 1; day <= daysInMonth; day += 1) {
+			const dayKey = `${selectedMonthKey}-${String(day).padStart(2, '0')}`;
+			cells.push({
+				day,
+				dayKey,
+				hasSlots: slotsByDay.has(dayKey),
+				isToday: dayKey === todayKey
+			});
+		}
+
+		return cells;
+	});
+
+	function initializePickerSelection() {
+		if (monthOptions.length === 0) {
+			selectedMonthKey = null;
+			selectedDayKey = null;
+			selectedSlotId = null;
+			return;
+		}
+
+		if (!selectedMonthKey || !monthOptions.some((option) => option.key === selectedMonthKey)) {
+			selectedMonthKey = monthOptions[0].key;
+		}
+
+		const dayKeysInMonth = Array.from(slotsByDay.keys())
+			.filter((dayKey) => dayKey.startsWith(`${selectedMonthKey}-`))
+			.sort();
+
+		if (!selectedDayKey || !dayKeysInMonth.includes(selectedDayKey)) {
+			selectedDayKey = dayKeysInMonth[0] ?? null;
+		}
+
+		const currentDaySlots = selectedDayKey ? (slotsByDay.get(selectedDayKey) ?? []) : [];
+		if (selectedSlotId && !currentDaySlots.some((slot) => slot.id === selectedSlotId)) {
+			selectedSlotId = null;
+		}
+	}
 
 	function formatTime(iso: string): string {
 		return new Intl.DateTimeFormat('en-US', {
@@ -72,12 +204,37 @@
 			}
 			const data = (await response.json()) as { slots: Slot[] };
 			slots = data.slots;
+			initializePickerSelection();
 		} catch (err) {
 			loadError =
 				err instanceof Error ? err.message : 'Could not load availability. Please try again.';
 		} finally {
 			loading = false;
 		}
+	}
+
+	function selectDay(dayKey: string) {
+		selectedDayKey = dayKey;
+		selectedSlotId = null;
+		reserveError = null;
+		reservedBooking = null;
+	}
+
+	function handleMonthChange() {
+		if (!selectedMonthKey) {
+			selectedDayKey = null;
+			selectedSlotId = null;
+			return;
+		}
+
+		selectedDayKey =
+			Array.from(slotsByDay.keys())
+				.filter((dayKey) => dayKey.startsWith(`${selectedMonthKey}-`))
+				.sort()[0] ?? null;
+
+		selectedSlotId = null;
+		reserveError = null;
+		reservedBooking = null;
 	}
 
 	async function reserveSelectedSlot() {
@@ -161,27 +318,73 @@
 					<a href="mailto:{tutor.email}">{tutor.email}</a>.
 				</p>
 			{:else}
-				{#each slotGroups as [day, daySlots]}
-					<section class="day-group" aria-label={day}>
-						<h2 class="day-title">{day}</h2>
-						<div class="slot-grid">
-							{#each daySlots as slot}
-								<button
-									type="button"
-									class="slot-btn"
-									class:slot-btn--selected={selectedSlotId === slot.id}
-									onclick={() => {
-										selectedSlotId = slot.id;
-										reserveError = null;
-										reservedBooking = null;
-									}}
-								>
-									{formatTime(slot.startTime)}
-								</button>
+				<div class="picker-grid">
+					<section class="picker-block" aria-label="Choose month">
+						<p class="picker-title">1. Choose month</p>
+						<select class="month-select" bind:value={selectedMonthKey} onchange={handleMonthChange}>
+							{#each monthOptions as month}
+								<option value={month.key}>{month.label}</option>
+							{/each}
+						</select>
+					</section>
+
+					<section class="picker-block" aria-label="Choose day">
+						<p class="picker-title">2. Choose day</p>
+						<div class="calendar-headings">
+							{#each weekDayHeaders as header}
+								<span>{header}</span>
+							{/each}
+						</div>
+						<div class="calendar-grid">
+							{#each calendarCells as cell}
+								{#if !cell}
+									<div class="calendar-day calendar-day--empty" aria-hidden="true"></div>
+								{:else}
+									<button
+										type="button"
+										class="calendar-day"
+										class:calendar-day--today={cell.isToday}
+										class:calendar-day--selected={selectedDayKey === cell.dayKey}
+										disabled={!cell.hasSlots}
+										onclick={() => selectDay(cell.dayKey)}
+									>
+										{cell.day}
+									</button>
+								{/if}
 							{/each}
 						</div>
 					</section>
-				{/each}
+
+					<section class="picker-block" aria-label="Choose hour">
+						<p class="picker-title">3. Choose hour</p>
+						{#if selectedDayLabel}
+							<p class="selected-day-label">{selectedDayLabel}</p>
+						{/if}
+
+						{#if !selectedDayKey}
+							<p class="status-msg">Choose a highlighted day to see available hours.</p>
+						{:else if selectedDaySlots.length === 0}
+							<p class="status-msg">No available hours on this day.</p>
+						{:else}
+							<div class="slot-grid">
+								{#each selectedDaySlots as slot}
+									<button
+										type="button"
+										class="slot-btn"
+										class:slot-btn--selected={selectedSlotId === slot.id}
+										onclick={() => {
+											selectedSlotId = slot.id;
+											reserveError = null;
+											reservedBooking = null;
+										}}
+									>
+										{formatTime(slot.startTime)}
+									</button>
+								{/each}
+							</div>
+						{/if}
+					</section>
+				</div>
 
 				<div class="reserve-action">
 					<button
@@ -313,18 +516,99 @@
 		font-size: 0.92rem;
 	}
 
-	.day-group {
-		display: flex;
-		flex-direction: column;
-		gap: 0.6rem;
+	.picker-grid {
+		display: grid;
+		grid-template-columns: 240px minmax(280px, 420px) minmax(260px, 1fr);
+		gap: 1rem;
+		align-items: start;
 	}
 
-	.day-title {
-		font-size: 0.85rem;
-		color: var(--accent);
-		letter-spacing: 0.06em;
+	.picker-block {
+		display: flex;
+		flex-direction: column;
+		gap: 0.65rem;
+		padding: 0.9rem;
+		background: rgba(9, 16, 28, 0.6);
+		border: 1px solid var(--border);
+		min-height: 100%;
+	}
+
+	.picker-title {
+		font-size: 0.75rem;
+		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		font-family: var(--font-mono);
+		color: var(--accent);
+	}
+
+	.month-select {
+		background: var(--panel);
+		border: 1px solid var(--border);
+		color: var(--text);
+		padding: 0.55rem 0.65rem;
+		font-family: var(--font-mono);
+		font-size: 0.85rem;
+	}
+
+	.calendar-headings {
+		display: grid;
+		grid-template-columns: repeat(7, 1fr);
+		gap: 0.25rem;
+		font-family: var(--font-mono);
+		font-size: 0.68rem;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: var(--muter);
+	}
+
+	.calendar-headings span {
+		text-align: center;
+	}
+
+	.calendar-grid {
+		display: grid;
+		grid-template-columns: repeat(7, 1fr);
+		gap: 0.25rem;
+	}
+
+	.calendar-day {
+		height: 2rem;
+		border: 1px solid var(--border);
+		background: transparent;
+		color: var(--text);
+		font-family: var(--font-mono);
+		font-size: 0.8rem;
+		cursor: pointer;
+		transition: border-color 0.14s, background-color 0.14s, color 0.14s;
+	}
+
+	.calendar-day--empty {
+		border-color: transparent;
+	}
+
+	.calendar-day:hover:enabled {
+		border-color: rgba(54, 242, 194, 0.45);
+	}
+
+	.calendar-day:disabled {
+		opacity: 0.3;
+		cursor: not-allowed;
+	}
+
+	.calendar-day--today {
+		border-color: rgba(54, 242, 194, 0.45);
+	}
+
+	.calendar-day--selected {
+		border-color: rgba(54, 242, 194, 0.7);
+		background: rgba(54, 242, 194, 0.12);
+		color: var(--accent);
+	}
+
+	.selected-day-label {
+		font-size: 0.82rem;
+		color: var(--muted);
+		margin-bottom: 0.2rem;
 	}
 
 	.slot-grid {
@@ -432,6 +716,16 @@
 
 		.step:last-child {
 			border-bottom: none;
+		}
+
+		.picker-grid {
+			grid-template-columns: 1fr;
+		}
+	}
+
+	@media (max-width: 980px) {
+		.picker-grid {
+			grid-template-columns: 1fr;
 		}
 	}
 </style>

@@ -45,6 +45,8 @@ begin
 end;
 $$ language plpgsql;
 
+drop trigger if exists bookings_set_updated_at on bookings;
+
 create trigger bookings_set_updated_at
 before update on bookings
 for each row
