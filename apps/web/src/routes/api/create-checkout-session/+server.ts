@@ -80,6 +80,7 @@ export const POST: RequestHandler = async ({ request, url }) => {
 	const { error: updateError } = await supabase
 		.from('bookings')
 		.update({
+			stripe_session_id: session.id,
 			session_type: sessionType,
 			customer_email: customerEmail && customerEmail.trim() ? customerEmail.trim() : null
 		})

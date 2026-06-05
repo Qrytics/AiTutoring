@@ -37,6 +37,18 @@ create index if not exists bookings_slot_id_idx on bookings (slot_id);
 create index if not exists bookings_status_idx on bookings (status);
 create index if not exists bookings_reservation_expires_idx on bookings (reservation_expires_at);
 
+create table if not exists stripe_webhook_events (
+	id text primary key,
+	type text not null,
+	payload jsonb not null,
+	received_at timestamptz not null default now(),
+	processed_at timestamptz,
+	processing_error text
+);
+
+create index if not exists stripe_webhook_events_processed_idx
+	on stripe_webhook_events (processed_at);
+
 create or replace function set_updated_at_timestamp()
 returns trigger as $$
 begin

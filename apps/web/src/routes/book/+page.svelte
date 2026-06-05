@@ -39,6 +39,7 @@
 	let reserveError = $state<string | null>(null);
 	let slots = $state<Slot[]>([]);
 	let selectedSlotId = $state<string | null>(null);
+	let monthOptions = $state<MonthOption[]>([]);
 	let selectedMonthKey = $state<string | null>(null);
 	let selectedDayKey = $state<string | null>(null);
 	let reserveLoading = $state(false);
@@ -82,34 +83,6 @@
 		}
 
 		return groups;
-	});
-
-	const monthOptions = $derived.by(() => {
-		const months = new Map<string, MonthOption>();
-
-		for (const slot of slots) {
-			const slotDate = new Date(slot.startTime);
-			const monthKey = toMonthKey(slotDate);
-
-			if (!months.has(monthKey)) {
-				months.set(monthKey, {
-					key: monthKey,
-					label: new Intl.DateTimeFormat('en-US', {
-						month: 'long',
-						year: 'numeric'
-					}).format(slotDate)
-				});
-			}
-		}
-
-		return Array.from(months.values()).sort((a, b) => a.key.localeCompare(b.key));
-	});
-
-	const availableDayKeysForMonth = $derived.by(() => {
-		if (!selectedMonthKey) return [];
-		return Array.from(slotsByDay.keys())
-			.filter((dayKey) => dayKey.startsWith(`${selectedMonthKey}-`))
-			.sort();
 	});
 
 	const selectedDaySlots = $derived.by(() => {
@@ -172,30 +145,40 @@
 		return cells;
 	});
 
-	function initializePickerSelection() {
-		if (monthOptions.length === 0) {
-			selectedMonthKey = null;
-			selectedDayKey = null;
-			selectedSlotId = null;
-			return;
+	function buildMonthOptions(monthCount = 6): MonthOption[] {
+		const current = new Date();
+		const options: MonthOption[] = [];
+
+		for (let i = 0; i < monthCount; i += 1) {
+			const date = new Date(current.getFullYear(), current.getMonth() + i, 1);
+			options.push({
+				key: toMonthKey(date),
+				label: new Intl.DateTimeFormat('en-US', {
+					month: 'long',
+					year: 'numeric'
+				}).format(date)
+			});
 		}
 
-		if (!selectedMonthKey || !monthOptions.some((option) => option.key === selectedMonthKey)) {
-			selectedMonthKey = monthOptions[0].key;
-		}
+		return options;
+	}
 
-		const dayKeysInMonth = Array.from(slotsByDay.keys())
-			.filter((dayKey) => dayKey.startsWith(`${selectedMonthKey}-`))
-			.sort();
+	function getMonthRangeIso(monthKey: string): { start: string; end: string } {
+		const [yearStr, monthStr] = monthKey.split('-');
+		const year = Number(yearStr);
+		const monthIndex = Number(monthStr) - 1;
 
-		if (!selectedDayKey || !dayKeysInMonth.includes(selectedDayKey)) {
-			selectedDayKey = dayKeysInMonth[0] ?? null;
-		}
+		const start = new Date(year, monthIndex, 1, 0, 0, 0, 0);
+		const end = new Date(year, monthIndex + 1, 1, 0, 0, 0, 0);
 
-		const currentDaySlots = selectedDayKey ? (slotsByDay.get(selectedDayKey) ?? []) : [];
-		if (selectedSlotId && !currentDaySlots.some((slot) => slot.id === selectedSlotId)) {
-			selectedSlotId = null;
-		}
+		return {
+			start: start.toISOString(),
+			end: end.toISOString()
+		};
+	}
+
+	function getDayKeysFromSlots(slotList: Slot[]): string[] {
+		return Array.from(new Set(slotList.map((slot) => toDayKey(new Date(slot.startTime))))).sort();
 	}
 
 	function formatTime(iso: string): string {
@@ -225,23 +208,38 @@
 		}).format(reference);
 	}
 
-	async function loadSlots() {
+	async function loadSlotsForMonth(monthKey: string) {
 		loading = true;
 		loadError = null;
 		try {
-			const response = await fetch(`${base}/api/availability`);
+			const range = getMonthRangeIso(monthKey);
+			const response = await fetch(
+				`${base}/api/availability?start=${encodeURIComponent(range.start)}&end=${encodeURIComponent(range.end)}`
+			);
 			if (!response.ok) {
 				throw new Error('Could not load availability. Please refresh and try again.');
 			}
 			const data = (await response.json()) as { slots: Slot[] };
 			slots = data.slots;
-			initializePickerSelection();
+			const dayKeys = getDayKeysFromSlots(data.slots);
+			selectedDayKey = dayKeys[0] ?? null;
+			selectedSlotId = null;
+			reserveError = null;
+			reservedBooking = null;
 		} catch (err) {
 			loadError =
 				err instanceof Error ? err.message : 'Could not load availability. Please try again.';
+			slots = [];
+			selectedDayKey = null;
+			selectedSlotId = null;
 		} finally {
 			loading = false;
 		}
+	}
+
+	async function retryLoad() {
+		if (!selectedMonthKey) return;
+		await loadSlotsForMonth(selectedMonthKey);
 	}
 
 	function selectDay(dayKey: string) {
@@ -251,21 +249,14 @@
 		reservedBooking = null;
 	}
 
-	function handleMonthChange() {
+	async function handleMonthChange() {
 		if (!selectedMonthKey) {
 			selectedDayKey = null;
 			selectedSlotId = null;
 			return;
 		}
 
-		selectedDayKey =
-			Array.from(slotsByDay.keys())
-				.filter((dayKey) => dayKey.startsWith(`${selectedMonthKey}-`))
-				.sort()[0] ?? null;
-
-		selectedSlotId = null;
-		reserveError = null;
-		reservedBooking = null;
+		await loadSlotsForMonth(selectedMonthKey);
 	}
 
 	function selectHourSlot(slot: Slot | null) {
@@ -311,7 +302,14 @@
 	}
 
 	onMount(async () => {
-		await loadSlots();
+		monthOptions = buildMonthOptions(12);
+		selectedMonthKey = monthOptions[0]?.key ?? null;
+
+		if (selectedMonthKey) {
+			await loadSlotsForMonth(selectedMonthKey);
+		} else {
+			loading = false;
+		}
 	});
 </script>
 
@@ -349,12 +347,7 @@
 				<p class="status-msg">Loading available times...</p>
 			{:else if loadError}
 				<p class="error-msg" role="alert">{loadError}</p>
-				<button class="btn btn--ghost" onclick={loadSlots}>Try again</button>
-			{:else if slots.length === 0}
-				<p class="status-msg">
-					No slots are currently available. Please check back soon or email
-					<a href="mailto:{tutor.email}">{tutor.email}</a>.
-				</p>
+				<button class="btn btn--ghost" onclick={retryLoad}>Try again</button>
 			{:else}
 				<div class="picker-grid">
 					<section class="picker-block" aria-label="Choose month">
@@ -400,7 +393,11 @@
 						{/if}
 
 						{#if !selectedDayKey}
-							<p class="status-msg">Choose a highlighted day to see available hours.</p>
+							<p class="status-msg">
+								{slots.length === 0
+									? `No slots are available in this month. Try another month or email ${tutor.email}.`
+									: 'Choose a highlighted day to see available hours.'}
+							</p>
 						{:else}
 							<div class="slot-grid">
 								{#each selectedDayHourCells as hourCell}
@@ -722,7 +719,10 @@
 	.btn {
 
 	.hours-note {
-		font-size: 0.78rem;
+		font-size: 0.62rem;
+		line-height: 1.35;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
 		color: var(--muter);
 	}
 
@@ -739,8 +739,15 @@
 	}
 
 	[data-theme='light'] .slot-btn--unavailable {
-		background: var(--panel);
-		color: var(--muted);
+		background: color-mix(in srgb, var(--panel) 90%, #9aa9a5 10%);
+		color: rgba(24, 65, 60, 0.42);
+		border-color: rgba(24, 65, 60, 0.16);
+		text-decoration: line-through;
+		text-decoration-thickness: 1px;
+	}
+
+	[data-theme='light'] .slot-btn--unavailable:disabled {
+		opacity: 1;
 	}
 		display: inline-block;
 		padding: 0.6rem 1.2rem;

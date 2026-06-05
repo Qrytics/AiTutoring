@@ -38,6 +38,30 @@ export async function getFutureSlots(limit = 80): Promise<Slot[]> {
 	return (data ?? []) as Slot[];
 }
 
+export async function getFutureSlotsInRange(
+	startIso: string,
+	endIso: string,
+	limit = 800
+): Promise<Slot[]> {
+	const nowIso = new Date().toISOString();
+	const rangeStartIso = startIso > nowIso ? startIso : nowIso;
+
+	const { data, error: queryError } = await supabase
+		.from('available_slots')
+		.select('id,start_time,end_time')
+		.eq('is_active', true)
+		.gte('start_time', rangeStartIso)
+		.lt('start_time', endIso)
+		.order('start_time', { ascending: true })
+		.limit(limit);
+
+	if (queryError) {
+		throw error(500, 'Could not load available slots.');
+	}
+
+	return (data ?? []) as Slot[];
+}
+
 export async function getReservedSlotIds(slotIds: string[]): Promise<Set<string>> {
 	if (slotIds.length === 0) return new Set();
 
