@@ -27,6 +27,7 @@
 		function resize() {
 			if (!canvas || !container) return;
 			const r = container.getBoundingClientRect();
+			// Clamp DPR to reduce GPU work on high-density screens.
 			dpr = Math.min(window.devicePixelRatio || 1, 1.5);
 			canvas.width = Math.max(1, Math.floor(r.width * dpr));
 			canvas.height = Math.max(1, Math.floor(r.height * dpr));
@@ -55,18 +56,25 @@
 			g.clearRect(0, 0, w, h);
 			g.imageSmoothingEnabled = true;
 
+			// Checker setup (work in CSS pixels, then scale via DPR).
 			const cw = w / dpr;
 			const ch = h / dpr;
 
+			// Larger tiles = fewer rects = smoother + faster.
 			const cell = 30;
 			const period = cell * 2;
+
+			// Right-to-left motion, seamless wrap every 2*cell.
 			const speed = 24;
 			const offsetX = -((t * speed) % period);
+
+			// Wave warp (subtle, smooth).
 			const amp = Math.min(18, ch * 0.07);
 			const waveLen = 260;
 			const waveLen2 = 520;
 			const phase = t * 1.25;
 
+			// Colors (very light, on-brand).
 			const base = 'rgba(255,255,255,0.014)';
 			const accent = 'rgba(54,242,194,0.052)';
 
@@ -78,12 +86,15 @@
 
 			for (let i = -3; i < cols - 3; i++) {
 				const x = i * cell + offsetX;
+				// Make the entire column ride the same wave for cleaner motion.
 				const yWarp =
 					Math.sin((x / waveLen) * Math.PI * 2 + phase) * amp +
 					Math.sin((x / waveLen2) * Math.PI * 2 + phase * 0.7) * (amp * 0.45);
 
 				for (let j = -3; j < rows - 3; j++) {
 					const y = j * cell + yWarp;
+
+					// Checker: only draw one color strongly to keep it subtle.
 					if ((i + j) % 2 === 0) {
 						g.fillStyle = accent;
 						g.fillRect(x, y, cell, cell);
@@ -94,6 +105,7 @@
 				}
 			}
 
+			// Fade overlay similar to previous look.
 			const grad = g.createLinearGradient(0, 0, 0, ch);
 			grad.addColorStop(0, 'rgba(0,0,0,0)');
 			grad.addColorStop(0.18, 'rgba(0,0,0,0.15)');
@@ -156,5 +168,7 @@
 		height: 100%;
 		opacity: 0.9;
 		mix-blend-mode: screen;
+		/* Avoid translateZ(0): with landing `.page { isolation: isolate }` it can promote a layer
+		   that incorrectly stacks above the sticky header for hit-testing in some browsers. */
 	}
 </style>

@@ -3,8 +3,20 @@
 	import WaveCheckeredBackground from '$lib/components/WaveCheckeredBackground.svelte';
 	import { tutor, subjects, resources, pricingTiers, steps, faq } from '$lib/data/tutor';
 
+	let toastVisible = $state(false);
+	let toastTimer: ReturnType<typeof setTimeout> | undefined;
+
 	// FAQ accordion state — tracks which item is open
 	let openFaqIndex = $state<number | null>(null);
+
+	function copyEmail() {
+		navigator.clipboard.writeText(tutor.email).then(() => {
+			if (toastTimer !== undefined) clearTimeout(toastTimer);
+			toastVisible = true;
+			toastTimer = setTimeout(() => (toastVisible = false), 2500);
+		});
+	}
+
 	function toggleFaq(i: number) {
 		openFaqIndex = openFaqIndex === i ? null : i;
 	}
@@ -15,20 +27,37 @@
 </svelte:head>
 
 <!-- ═══════════════════════════════════════════════ HERO -->
-<section class="hero" aria-label="Introduction">
-	<div class="hero__bg" aria-hidden="true">
+<section class="header" aria-label="Introduction">
+	<div class="hero-background" aria-hidden="true">
 		<WaveCheckeredBackground />
 	</div>
-	<div class="hero__content">
-		<p class="hero__kicker">tutoring · sessions · cmu engineer</p>
-		<h1 class="hero__headline">{tutor.headline}</h1>
-		<p class="hero__desc">{tutor.description}</p>
-		<div class="hero__actions">
-			<a href="{base}/book" class="btn btn--primary">Book a Session →</a>
-			<a href="#pricing" class="btn btn--ghost">View pricing</a>
+	<div class="header__content">
+		<h1 class="header__tagline">{tutor.tagline}</h1>
+		<p class="header__description">{tutor.headline}</p>
+		<p class="header__cta">{tutor.description}</p>
+		<div class="header__actions">
+			<a href="{base}/book" class="hero-action">book a tutoring session ↗</a>
+			<a href="#pricing" class="hero-action hero-action--secondary">view pricing</a>
+		</div>
+		<div class="header__meta">
+			<a href={tutor.github} target="_blank" rel="noopener noreferrer" class="link link__mono">
+				{tutor.github.replace('https://', '')}
+			</a>
+			<span class="meta-sep">·</span>
+			<button type="button" class="link link__mono email-copy-btn" onclick={copyEmail}>
+				{tutor.email}
+			</button>
+			<span class="meta-sep">·</span>
+			<a href={tutor.linkedin} target="_blank" rel="noopener noreferrer" class="link link__mono">
+				{tutor.linkedin.replace('https://www.', '')}
+			</a>
 		</div>
 	</div>
 </section>
+
+{#if toastVisible}
+	<div class="toast" role="status" aria-live="polite">email copied to clipboard</div>
+{/if}
 
 <!-- ═══════════════════════════════════════════════ SUBJECTS -->
 <section class="section" id="subjects" aria-label="Subjects">
@@ -60,22 +89,6 @@
 					We also cover modern dev tools and AI-first workflows including VS Code, Cursor,
 					Copilot, ChatGPT, Claude, Gemini, Codex, and agent-driven development.
 				</p>
-				<div class="subject-card__tags subject-card__tags--project" aria-label="Topics covered">
-					<span class="tag">GitHub Issues</span>
-					<span class="tag">GitHub Actions</span>
-					<span class="tag">Deployment</span>
-					<span class="tag">CI/CD</span>
-					<span class="tag">File Architecture</span>
-					<span class="tag">Best Practices</span>
-					<span class="tag">VS Code</span>
-					<span class="tag">Cursor</span>
-					<span class="tag">Copilot</span>
-					<span class="tag">ChatGPT</span>
-					<span class="tag">Claude</span>
-					<span class="tag">Gemini</span>
-					<span class="tag">Codex</span>
-					<span class="tag">Agents</span>
-				</div>
 			</article>
 		</div>
 	</div>
@@ -198,65 +211,122 @@
 
 <style>
 	/* ── Hero ───────────────────────────────────────────── */
-	.hero {
+	.header {
 		position: relative;
+		margin-top: 0;
+		margin-bottom: 0;
 		min-height: 320px;
 		z-index: 1;
 	}
 
-	.hero__bg {
+	.hero-background {
 		position: absolute;
-		inset: 0;
+		top: 0;
+		left: 0;
+		right: 0;
+		height: 100%;
 		z-index: 0;
 		pointer-events: none;
-		opacity: 0.22;
 	}
 
-	.hero__content {
+	.header__content {
 		position: relative;
 		z-index: 1;
-		padding: clamp(2.5rem, 5vw, 4rem) clamp(1.25rem, 6vw, 5rem);
+		padding: clamp(2rem, 4vw, 3rem) clamp(2rem, 6vw, 5rem);
 		display: flex;
 		flex-direction: column;
+		justify-content: center;
 		align-items: center;
 		text-align: center;
 		min-height: 320px;
-		justify-content: center;
 	}
 
-	.hero__kicker {
-		font-size: 0.72rem;
-		letter-spacing: 0.14em;
-		text-transform: uppercase;
-		color: var(--accent);
-		margin-bottom: 0.75rem;
+	.header__content::before {
+		content: '';
+		position: absolute;
+		inset: 50%;
+		transform: translate(-50%, -50%);
+		width: min(80ch, 80%);
+		height: 70%;
+		background: radial-gradient(
+			ellipse at center,
+			rgba(0, 0, 0, 0.8) 0%,
+			rgba(0, 0, 0, 0.7) 30%,
+			rgba(0, 0, 0, 0.5) 60%,
+			transparent 85%
+		);
+		filter: blur(16px);
+		z-index: -1;
+		pointer-events: none;
 	}
 
-	.hero__headline {
-		font-size: clamp(1.5rem, 3.5vw, 2.25rem);
+	.header__tagline {
+		position: relative;
+		margin: 0;
+		color: var(--text);
+		font-size: clamp(1.4rem, 3vw, 1.85rem);
 		font-weight: 700;
-		max-width: 68ch;
-		line-height: 1.35;
-		margin-bottom: 1rem;
+		max-width: 75ch;
+		line-height: 1.45;
+		padding-bottom: 16px;
+		text-shadow: 0 0 4px #000, 0 2px 12px #000, 0 0 50px #000;
 	}
 
-	.hero__desc {
+	.header__tagline::before {
+		content: '';
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		transform: translate(-50%, -50%);
+		width: calc(100% + 2rem);
+		height: calc(100% + 0.75rem);
+		background: rgba(0, 0, 0, 0.4);
+		filter: blur(12px);
+		z-index: -1;
+		pointer-events: none;
+	}
+
+	.header__description {
+		position: relative;
+		margin: 1rem 0 0;
+		color: var(--text);
 		font-size: clamp(0.9rem, 1.7vw, 1rem);
-		max-width: 60ch;
-		color: var(--muted);
+		font-weight: 400;
+		max-width: 70ch;
 		line-height: 1.7;
-		margin-bottom: 1.75rem;
+		text-shadow: 0 0 4px #000, 0 2px 12px #000, 0 0 50px #000;
 	}
 
-	[data-theme='light'] .hero__bg {
-		opacity: 0.12;
+	.header__cta {
+		position: relative;
+		margin: 0.65rem 0 0;
+		color: rgba(243, 246, 255, 0.82);
+		font-size: clamp(0.9rem, 1.7vw, 1rem);
+		font-weight: 400;
+		max-width: 70ch;
+		line-height: 1.6;
+		text-shadow: 0 0 4px #000, 0 2px 12px #000, 0 0 50px #000;
 	}
 
-	.hero__actions {
+	.header__meta {
+		position: relative;
+		margin: 1.25rem 0 0;
+		font-size: clamp(0.95rem, 1.8vw, 1.1rem);
+		text-shadow: 0 0 4px #000, 0 2px 12px #000, 0 0 50px #000;
 		display: flex;
 		flex-wrap: wrap;
-		gap: 0.75rem;
+		align-items: center;
 		justify-content: center;
+		gap: 0.75rem;
+	}
+
+	.header__actions {
+		position: relative;
+		margin-top: 1.15rem;
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		gap: 0.75rem;
 	}
 
 	/* ── Buttons ────────────────────────────────────────── */
@@ -284,17 +354,6 @@
 		color: var(--accent);
 	}
 
-	.btn--ghost {
-		background: transparent;
-		border-color: var(--border);
-		color: var(--muted);
-	}
-
-	.btn--ghost:hover {
-		border-color: rgba(222, 232, 255, 0.3);
-		color: var(--text);
-	}
-
 	.btn--large {
 		padding: 0.75rem 1.75rem;
 		font-size: 1rem;
@@ -303,6 +362,123 @@
 	.btn[aria-disabled='true'] {
 		opacity: 0.55;
 		pointer-events: none;
+	}
+
+	.hero-action {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0.5rem 0.9rem;
+		border: 1px solid rgba(54, 242, 194, 0.38);
+		background: color-mix(in srgb, var(--panel) 80%, transparent);
+		color: rgba(243, 246, 255, 0.96);
+		font-family: var(--font-mono);
+		font-size: 0.88rem;
+		line-height: 1.2;
+		text-decoration: none;
+		letter-spacing: 0.01em;
+		text-transform: lowercase;
+		transition: border-color 0.16s ease, color 0.16s ease, background-color 0.16s ease,
+			transform 0.16s ease;
+	}
+
+	.hero-action:hover,
+	.hero-action:focus-visible {
+		border-color: rgba(54, 242, 194, 0.6);
+		color: var(--accent);
+		background: color-mix(in srgb, var(--panel) 66%, transparent);
+		transform: translateY(-1px);
+	}
+
+	.hero-action--secondary {
+		border-color: var(--border);
+		color: var(--muted);
+	}
+
+	.hero-action--secondary:hover,
+	.hero-action--secondary:focus-visible {
+		border-color: rgba(222, 232, 255, 0.3);
+		color: var(--text);
+	}
+
+	.link {
+		color: rgba(54, 242, 194, 0.94);
+		text-decoration: none;
+		border-bottom: 1px solid rgba(54, 242, 194, 0.3);
+		transition: border-color 0.14s ease, color 0.14s ease;
+		font-family: var(--font-mono);
+	}
+
+	.link:hover {
+		color: var(--accent);
+		border-color: rgba(54, 242, 194, 0.55);
+	}
+
+	.link__mono {
+		color: var(--text);
+	}
+
+	.meta-sep {
+		color: rgba(243, 246, 255, 0.45);
+		font-family: var(--font-mono);
+	}
+
+	.email-copy-btn {
+		background: none;
+		border-top: none;
+		border-left: none;
+		border-right: none;
+		padding: 0;
+		font: inherit;
+		cursor: pointer;
+		border-bottom: 1px solid rgba(54, 242, 194, 0.3);
+	}
+
+	.email-copy-btn:focus-visible {
+		outline: 2px solid rgba(54, 242, 194, 0.6);
+		outline-offset: 4px;
+	}
+
+	.toast {
+		position: fixed;
+		bottom: 2rem;
+		left: 50%;
+		transform: translate(-50%);
+		background: var(--panel);
+		color: rgba(243, 246, 255, 0.92);
+		padding: 0.75rem 1.5rem;
+		border: 1px solid var(--border);
+		box-shadow: var(--shadow);
+		z-index: 1000;
+		text-align: center;
+		max-width: calc(100vw - 2rem);
+		white-space: normal;
+		overflow-wrap: anywhere;
+		font-family: var(--font-mono);
+		font-size: 0.9rem;
+		animation: toast-in 0.2s ease-out;
+	}
+
+	@keyframes toast-in {
+		from {
+			opacity: 0;
+			transform: translate(-50%) translateY(1rem);
+		}
+
+		to {
+			opacity: 1;
+			transform: translate(-50%) translateY(0);
+		}
+	}
+
+	@media (max-width: 520px) {
+		.meta-sep {
+			display: none;
+		}
+
+		.hero-action {
+			width: min(100%, 18rem);
+		}
 	}
 
 	/* ── Wide project CTA ─────────────────────────────── */
@@ -323,11 +499,7 @@
 		margin-top: 0.5rem;
 	}
 
-	.subject-card__tags--project {
-		margin-top: 0.2rem;
-	}
-
-	[data-theme='light'] .subject-card--project {
+	:global([data-theme='light']) .subject-card--project {
 		border-color: var(--border);
 		background: var(--panel);
 	}
@@ -625,13 +797,6 @@
 		text-align: center;
 	}
 
-	.pricing-note {
-		margin-top: 1.5rem;
-		font-size: 0.85rem;
-		color: var(--muted);
-		text-align: center;
-	}
-
 	/* ── FAQ ────────────────────────────────────────────── */
 	.faq-list {
 		display: flex;
@@ -731,16 +896,16 @@
 	}
 
 	@media (max-width: 640px) {
-		.hero__content {
+		.header__content {
 			padding: 2rem 1.1rem 2.4rem;
 		}
 
-		.hero__actions {
+		.header__actions {
 			width: 100%;
 			flex-direction: column;
 		}
 
-		.hero__actions .btn {
+		.hero-action {
 			width: 100%;
 			text-align: center;
 		}
