@@ -84,7 +84,7 @@ export const pricingTiers: PricingTier[] = [
 	{
 		id: 'single',
 		name: 'Single Session',
-		price: 30,
+		price: 20,
 		unit: '/hour',
 		description: 'One 60-minute session. Perfect for getting unstuck on a specific problem.',
 		features: [
@@ -92,41 +92,6 @@ export const pricingTiers: PricingTier[] = [
 			'Live coding & screen sharing',
 			'Session notes sent after',
 			'Follow-up questions by email'
-		],
-		popular: false
-	},
-	{
-		id: 'bundle',
-		name: '5-Session Bundle',
-		price: 275,
-		unit: '/bundle',
-		pricePerHour: 55,
-		savings: 25,
-		description: 'Five 60-minute sessions. Best for a focused sprint through a topic.',
-		features: [
-			'5 × 60-minute live video calls',
-			'Live coding & screen sharing',
-			'Session notes for each call',
-			'Priority scheduling',
-			'Async Q&A between sessions'
-		],
-		popular: true
-	},
-	{
-		id: 'monthly',
-		name: 'Monthly Plan',
-		price: 400,
-		unit: '/mo',
-		pricePerHour: 50,
-		savings: 80,
-		description: 'Eight sessions per month. Ongoing support for coursework or projects.',
-		features: [
-			'8 × 60-minute live video calls',
-			'Live coding & screen sharing',
-			'Session notes for each call',
-			'Priority scheduling',
-			'Async Slack/Discord support',
-			'Cancel anytime'
 		],
 		popular: false
 	}

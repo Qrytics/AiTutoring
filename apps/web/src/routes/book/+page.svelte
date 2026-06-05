@@ -563,7 +563,7 @@
 		flex-direction: column;
 		gap: 0.65rem;
 		padding: 0.9rem;
-		background: rgba(9, 16, 28, 0.6);
+		background: var(--panel-2);
 		border: 1px solid var(--border);
 		min-height: 100%;
 	}
@@ -673,12 +673,12 @@
 
 	.slot-btn--unavailable {
 		color: var(--muter);
-		border-color: rgba(122, 132, 153, 0.32);
-		background: rgba(122, 132, 153, 0.08);
+		border-color: var(--border-2);
+		background: var(--panel-2);
 	}
 
 	.slot-btn--unavailable:hover {
-		border-color: rgba(122, 132, 153, 0.32);
+		border-color: var(--border-2);
 	}
 
 	.slot-btn--selected {
@@ -724,6 +724,23 @@
 	.hours-note {
 		font-size: 0.78rem;
 		color: var(--muter);
+	}
+
+	[data-theme='light'] .picker-block {
+		background: var(--panel);
+	}
+
+	[data-theme='light'] .month-select {
+		background: var(--bg);
+	}
+
+	[data-theme='light'] .calendar-day:disabled {
+		opacity: 0.55;
+	}
+
+	[data-theme='light'] .slot-btn--unavailable {
+		background: var(--panel);
+		color: var(--muted);
 	}
 		display: inline-block;
 		padding: 0.6rem 1.2rem;

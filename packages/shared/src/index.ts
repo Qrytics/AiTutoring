@@ -1,6 +1,6 @@
 // Shared TypeScript types for the AiTutoring monorepo
 
-export type PricingTierId = 'single' | 'bundle' | 'monthly';
+export type PricingTierId = 'single';
 
 export interface BookingSession {
 	sessionType: PricingTierId;

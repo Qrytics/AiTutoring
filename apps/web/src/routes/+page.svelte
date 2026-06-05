@@ -109,8 +109,7 @@
 			{/each}
 		</div>
 		<p class="pricing-note">
-			Single sessions are now <strong>$30/hour</strong>. Native scheduling for bundle and monthly
-			plans is coming soon.
+			Single sessions are <strong>$20/hour</strong>.
 		</p>
 	</div>
 </section>
@@ -167,6 +166,7 @@
 		inset: 0;
 		z-index: 0;
 		pointer-events: none;
+		opacity: 0.22;
 	}
 
 	.hero__content {
@@ -181,32 +181,12 @@
 		justify-content: center;
 	}
 
-	.hero__content::before {
-		content: '';
-		position: absolute;
-		inset: 50%;
-		transform: translate(-50%, -50%);
-		width: min(80ch, 80%);
-		height: 70%;
-		background: radial-gradient(
-			ellipse at center,
-			rgba(0, 0, 0, 0.8) 0%,
-			rgba(0, 0, 0, 0.7) 30%,
-			rgba(0, 0, 0, 0.5) 60%,
-			transparent 85%
-		);
-		filter: blur(16px);
-		z-index: -1;
-		pointer-events: none;
-	}
-
 	.hero__kicker {
 		font-size: 0.72rem;
 		letter-spacing: 0.14em;
 		text-transform: uppercase;
 		color: var(--accent);
 		margin-bottom: 0.75rem;
-		text-shadow: 0 0 4px #000;
 	}
 
 	.hero__headline {
@@ -215,7 +195,6 @@
 		max-width: 68ch;
 		line-height: 1.35;
 		margin-bottom: 1rem;
-		text-shadow: 0 0 4px #000, 0 2px 12px #000, 0 0 50px #000;
 	}
 
 	.hero__desc {
@@ -224,7 +203,10 @@
 		color: var(--muted);
 		line-height: 1.7;
 		margin-bottom: 1.75rem;
-		text-shadow: 0 0 4px #000, 0 2px 8px #000;
+	}
+
+	[data-theme='light'] .hero__bg {
+		opacity: 0.12;
 	}
 
 	.hero__actions {
