@@ -27,6 +27,12 @@
 		hasSlots: boolean;
 		isToday: boolean;
 	};
+	
+	type HourCell = {
+		hour: number;
+		label: string;
+		slot: Slot | null;
+	};
 
 	let loading = $state(true);
 	let loadError = $state<string | null>(null);
@@ -39,6 +45,7 @@
 	let reservedBooking = $state<ReservedBooking | null>(null);
 
 	const weekDayHeaders = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+	const businessHours = Array.from({ length: 15 }, (_, idx) => idx + 9);
 
 	function toDayKey(date: Date): string {
 		const year = date.getFullYear();
@@ -108,6 +115,22 @@
 	const selectedDaySlots = $derived.by(() => {
 		if (!selectedDayKey) return [];
 		return slotsByDay.get(selectedDayKey) ?? [];
+	});
+
+	const selectedDayHourCells = $derived.by(() => {
+		if (!selectedDayKey) return [] as HourCell[];
+
+		const slotByHour = new Map<number, Slot>();
+		for (const slot of selectedDaySlots) {
+			const hour = new Date(slot.startTime).getHours();
+			slotByHour.set(hour, slot);
+		}
+
+		return businessHours.map((hour) => ({
+			hour,
+			label: formatHourLabel(hour),
+			slot: slotByHour.get(hour) ?? null
+		}));
 	});
 
 	const selectedDayLabel = $derived.by(() => {
@@ -194,6 +217,14 @@
 		return `${date}, ${time}`;
 	}
 
+	function formatHourLabel(hour: number): string {
+		const reference = new Date(2026, 0, 1, hour, 0, 0);
+		return new Intl.DateTimeFormat('en-US', {
+			hour: 'numeric',
+			minute: '2-digit'
+		}).format(reference);
+	}
+
 	async function loadSlots() {
 		loading = true;
 		loadError = null;
@@ -233,6 +264,13 @@
 				.sort()[0] ?? null;
 
 		selectedSlotId = null;
+		reserveError = null;
+		reservedBooking = null;
+	}
+
+	function selectHourSlot(slot: Slot | null) {
+		if (!slot) return;
+		selectedSlotId = slot.id;
 		reserveError = null;
 		reservedBooking = null;
 	}
@@ -363,25 +401,22 @@
 
 						{#if !selectedDayKey}
 							<p class="status-msg">Choose a highlighted day to see available hours.</p>
-						{:else if selectedDaySlots.length === 0}
-							<p class="status-msg">No available hours on this day.</p>
 						{:else}
 							<div class="slot-grid">
-								{#each selectedDaySlots as slot}
+								{#each selectedDayHourCells as hourCell}
 									<button
 										type="button"
 										class="slot-btn"
-										class:slot-btn--selected={selectedSlotId === slot.id}
-										onclick={() => {
-											selectedSlotId = slot.id;
-											reserveError = null;
-											reservedBooking = null;
-										}}
+										class:slot-btn--selected={hourCell.slot !== null && selectedSlotId === hourCell.slot.id}
+										class:slot-btn--unavailable={hourCell.slot === null}
+										disabled={hourCell.slot === null}
+										onclick={() => selectHourSlot(hourCell.slot)}
 									>
-										{formatTime(slot.startTime)}
+										{hourCell.label}
 									</button>
 								{/each}
 							</div>
+							<p class="hours-note">Gray times are unavailable or already reserved.</p>
 						{/if}
 					</section>
 				</div>
@@ -632,6 +667,20 @@
 		border-color: rgba(54, 242, 194, 0.45);
 	}
 
+	.slot-btn:disabled {
+		cursor: not-allowed;
+	}
+
+	.slot-btn--unavailable {
+		color: var(--muter);
+		border-color: rgba(122, 132, 153, 0.32);
+		background: rgba(122, 132, 153, 0.08);
+	}
+
+	.slot-btn--unavailable:hover {
+		border-color: rgba(122, 132, 153, 0.32);
+	}
+
 	.slot-btn--selected {
 		border-color: rgba(54, 242, 194, 0.6);
 		background: rgba(54, 242, 194, 0.12);
@@ -671,6 +720,11 @@
 	}
 
 	.btn {
+
+	.hours-note {
+		font-size: 0.78rem;
+		color: var(--muter);
+	}
 		display: inline-block;
 		padding: 0.6rem 1.2rem;
 		font-family: var(--font-mono);
