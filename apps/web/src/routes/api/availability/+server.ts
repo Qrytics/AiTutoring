@@ -1,9 +1,13 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { error } from '@sveltejs/kit';
-import { getFutureSlots, getFutureSlotsInRange, getReservedSlotIds } from '$lib/server/booking';
+import {
+	getFutureSlots,
+	getFutureSlotsInRange,
+	getReservedSlotIdsForViewer
+} from '$lib/server/booking';
 
-export const GET: RequestHandler = async ({ url }) => {
+export const GET: RequestHandler = async ({ url, cookies }) => {
 	const start = url.searchParams.get('start');
 	const end = url.searchParams.get('end');
 
@@ -29,7 +33,11 @@ export const GET: RequestHandler = async ({ url }) => {
 		slots = await getFutureSlots(2500);
 	}
 
-	const unavailableSlotIds = await getReservedSlotIds(slots.map((slot) => slot.id));
+	const reservationToken = cookies.get('booking_reservation_token') || undefined;
+	const unavailableSlotIds = await getReservedSlotIdsForViewer(
+		slots.map((slot) => slot.id),
+		reservationToken
+	);
 
 	const availableSlots = slots
 		.filter((slot) => !unavailableSlotIds.has(slot.id))

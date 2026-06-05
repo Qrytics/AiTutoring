@@ -90,6 +90,42 @@ export async function getReservedSlotIds(slotIds: string[]): Promise<Set<string>
 	return unavailable;
 }
 
+export async function getReservedSlotIdsForViewer(
+	slotIds: string[],
+	reservationToken?: string
+): Promise<Set<string>> {
+	if (slotIds.length === 0) return new Set();
+
+	const nowIso = new Date().toISOString();
+	const { data, error: queryError } = await supabase
+		.from('bookings')
+		.select('slot_id,status,reservation_expires_at,reservation_token')
+		.in('slot_id', slotIds)
+		.in('status', ['reserved', 'paid']);
+
+	if (queryError) {
+		throw error(500, 'Could not verify reserved slots.');
+	}
+
+	const unavailable = new Set<string>();
+	for (const row of data ?? []) {
+		if (row.status === 'paid') {
+			unavailable.add(row.slot_id);
+			continue;
+		}
+
+		if (row.reservation_expires_at && row.reservation_expires_at > nowIso) {
+			// The same visitor should continue seeing their active reservation as selectable.
+			if (reservationToken && row.reservation_token === reservationToken) {
+				continue;
+			}
+			unavailable.add(row.slot_id);
+		}
+	}
+
+	return unavailable;
+}
+
 export function getReservationExpiryIso(): string {
 	const expiresAt = new Date(Date.now() + RESERVATION_MINUTES * 60_000);
 	return expiresAt.toISOString();

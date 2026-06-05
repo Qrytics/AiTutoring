@@ -11,6 +11,7 @@
 
 	type ReservedBooking = {
 		bookingId: string;
+		slotId: string;
 		slotStart: string;
 		slotEnd: string;
 		reservationExpiresAt: string;
@@ -44,6 +45,7 @@
 	let selectedDayKey = $state<string | null>(null);
 	let reserveLoading = $state(false);
 	let reservedBooking = $state<ReservedBooking | null>(null);
+	const monthSlotsCache = new Map<string, Slot[]>();
 
 	const weekDayHeaders = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 	const businessHours = Array.from({ length: 15 }, (_, idx) => idx + 9);
@@ -181,6 +183,37 @@
 		return Array.from(new Set(slotList.map((slot) => toDayKey(new Date(slot.startTime))))).sort();
 	}
 
+	function readStoredReservation(): ReservedBooking | null {
+		const raw = localStorage.getItem('reserved-booking');
+		if (!raw) return null;
+
+		try {
+			const parsed = JSON.parse(raw) as Partial<ReservedBooking>;
+			if (!parsed.bookingId || !parsed.slotId || !parsed.slotStart || !parsed.slotEnd) {
+				return null;
+			}
+
+			return {
+				bookingId: parsed.bookingId,
+				slotId: parsed.slotId,
+				slotStart: parsed.slotStart,
+				slotEnd: parsed.slotEnd,
+				reservationExpiresAt: parsed.reservationExpiresAt ?? new Date().toISOString()
+			};
+		} catch {
+			return null;
+		}
+	}
+
+	function applyMonthSlots(slotList: Slot[]) {
+		slots = slotList;
+		const dayKeys = getDayKeysFromSlots(slotList);
+		selectedDayKey = dayKeys[0] ?? null;
+		selectedSlotId = null;
+		reserveError = null;
+		reservedBooking = null;
+	}
+
 	function formatTime(iso: string): string {
 		return new Intl.DateTimeFormat('en-US', {
 			hour: 'numeric',
@@ -208,9 +241,31 @@
 		}).format(reference);
 	}
 
-	async function loadSlotsForMonth(monthKey: string) {
-		loading = true;
-		loadError = null;
+	async function loadSlotsForMonth(
+		monthKey: string,
+		options?: { showLoading?: boolean; forceRefresh?: boolean }
+	) {
+		const showLoading = options?.showLoading ?? false;
+		const forceRefresh = options?.forceRefresh ?? false;
+
+		if (!forceRefresh) {
+			const cached = monthSlotsCache.get(monthKey);
+			if (cached) {
+				applyMonthSlots(cached);
+				loadError = null;
+				if (showLoading) loading = false;
+				return;
+			}
+		}
+
+		if (showLoading) {
+			loading = true;
+		}
+
+		if (selectedMonthKey === monthKey) {
+			loadError = null;
+		}
+
 		try {
 			const range = getMonthRangeIso(monthKey);
 			const response = await fetch(
@@ -220,26 +275,37 @@
 				throw new Error('Could not load availability. Please refresh and try again.');
 			}
 			const data = (await response.json()) as { slots: Slot[] };
-			slots = data.slots;
-			const dayKeys = getDayKeysFromSlots(data.slots);
-			selectedDayKey = dayKeys[0] ?? null;
-			selectedSlotId = null;
-			reserveError = null;
-			reservedBooking = null;
+			monthSlotsCache.set(monthKey, data.slots);
+
+			if (selectedMonthKey === monthKey) {
+				applyMonthSlots(data.slots);
+			}
 		} catch (err) {
-			loadError =
-				err instanceof Error ? err.message : 'Could not load availability. Please try again.';
-			slots = [];
-			selectedDayKey = null;
-			selectedSlotId = null;
+			if (selectedMonthKey === monthKey) {
+				loadError =
+					err instanceof Error ? err.message : 'Could not load availability. Please try again.';
+				slots = [];
+				selectedDayKey = null;
+				selectedSlotId = null;
+			}
 		} finally {
-			loading = false;
+			if (showLoading) {
+				loading = false;
+			}
 		}
+	}
+
+	async function prefetchRemainingMonths(activeMonthKey: string) {
+		const monthsToPrefetch = monthOptions
+			.map((month) => month.key)
+			.filter((monthKey) => monthKey !== activeMonthKey && !monthSlotsCache.has(monthKey));
+
+		await Promise.allSettled(monthsToPrefetch.map((monthKey) => loadSlotsForMonth(monthKey)));
 	}
 
 	async function retryLoad() {
 		if (!selectedMonthKey) return;
-		await loadSlotsForMonth(selectedMonthKey);
+		await loadSlotsForMonth(selectedMonthKey, { forceRefresh: true });
 	}
 
 	function selectDay(dayKey: string) {
@@ -262,21 +328,27 @@
 		reservedBooking = null;
 	}
 
-	async function reserveSelectedSlot() {
-		if (!selectedSlotId) {
-			reserveError = 'Please select a time slot first.';
-			return;
+	async function reserveSlot(
+		slotId: string,
+		options?: { silent?: boolean; setLoading?: boolean }
+	): Promise<ReservedBooking | null> {
+		const silent = options?.silent ?? false;
+		const setLoading = options?.setLoading ?? true;
+
+		if (setLoading) {
+			reserveLoading = true;
 		}
 
-		reserveLoading = true;
-		reserveError = null;
+		if (!silent) {
+			reserveError = null;
+		}
 
 		try {
 			const response = await fetch(`${base}/api/book-slot`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
-					slotId: selectedSlotId,
+					slotId,
 					timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
 				})
 			});
@@ -288,13 +360,57 @@
 
 			const data = (await response.json()) as ReservedBooking;
 			reservedBooking = data;
+			selectedSlotId = data.slotId;
+			selectedDayKey = toDayKey(new Date(data.slotStart));
 			localStorage.setItem('reserved-booking', JSON.stringify(data));
+			return data;
 		} catch (err) {
-			reserveError =
-				err instanceof Error ? err.message : 'Could not reserve slot. Please choose another time.';
+			if (!silent) {
+				reserveError =
+					err instanceof Error
+						? err.message
+						: 'Could not reserve slot. Please choose another time.';
+			}
+			return null;
 		} finally {
-			reserveLoading = false;
+			if (setLoading) {
+				reserveLoading = false;
+			}
 		}
+	}
+
+	async function silentlyRestoreReservationOnLoad() {
+		const stored = readStoredReservation();
+		if (!stored) return;
+
+		const slotStart = new Date(stored.slotStart);
+		if (Number.isNaN(slotStart.getTime()) || slotStart <= new Date()) {
+			localStorage.removeItem('reserved-booking');
+			return;
+		}
+
+		const targetMonthKey = toMonthKey(slotStart);
+		if (targetMonthKey !== selectedMonthKey) {
+			selectedMonthKey = targetMonthKey;
+			await loadSlotsForMonth(targetMonthKey);
+		}
+
+		const refreshed = await reserveSlot(stored.slotId, { silent: true, setLoading: false });
+		if (!refreshed) {
+			localStorage.removeItem('reserved-booking');
+			return;
+		}
+
+		selectedMonthKey = toMonthKey(new Date(refreshed.slotStart));
+	}
+
+	async function reserveSelectedSlot() {
+		if (!selectedSlotId) {
+			reserveError = 'Please select a time slot first.';
+			return;
+		}
+
+		await reserveSlot(selectedSlotId, { silent: false, setLoading: true });
 	}
 
 	onMount(async () => {
@@ -302,7 +418,9 @@
 		selectedMonthKey = monthOptions[0]?.key ?? null;
 
 		if (selectedMonthKey) {
-			await loadSlotsForMonth(selectedMonthKey);
+			await loadSlotsForMonth(selectedMonthKey, { showLoading: true });
+			await silentlyRestoreReservationOnLoad();
+			void prefetchRemainingMonths(selectedMonthKey);
 		} else {
 			loading = false;
 		}

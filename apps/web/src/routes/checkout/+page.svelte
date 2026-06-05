@@ -427,6 +427,7 @@
 		background: var(--panel);
 		border: 1px solid var(--border-2);
 		max-width: 52ch;
+		margin-inline: auto;
 	}
 
 	.security-note__icon {

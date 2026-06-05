@@ -10,7 +10,9 @@ const PRICE_IDS: Record<string, string> = {
 	single: STRIPE_PRICE_ID_SINGLE
 };
 
-export const POST: RequestHandler = async ({ request, url }) => {
+const RESERVATION_TOKEN_COOKIE = 'booking_reservation_token';
+
+export const POST: RequestHandler = async ({ request, url, cookies }) => {
 	let body: { sessionType?: string; customerEmail?: string; bookingId?: string };
 
 	try {
@@ -39,9 +41,10 @@ export const POST: RequestHandler = async ({ request, url }) => {
 	}
 
 	const nowIso = new Date().toISOString();
+	const reservationToken = cookies.get(RESERVATION_TOKEN_COOKIE);
 	const { data: booking, error: bookingError } = await supabase
 		.from('bookings')
-		.select('id,status,reservation_expires_at,slot_start')
+		.select('id,status,reservation_expires_at,slot_start,reservation_token')
 		.eq('id', bookingId)
 		.maybeSingle();
 
@@ -55,6 +58,10 @@ export const POST: RequestHandler = async ({ request, url }) => {
 
 	if (booking.status !== 'reserved' || booking.reservation_expires_at <= nowIso) {
 		throw error(409, 'This reservation expired. Please choose a time slot again.');
+	}
+
+	if (booking.reservation_token && booking.reservation_token !== reservationToken) {
+		throw error(403, 'This reservation belongs to a different browser session. Please reserve again.');
 	}
 
 	if (booking.slot_start <= nowIso) {

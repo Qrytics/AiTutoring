@@ -21,6 +21,7 @@ create table if not exists bookings (
 	slot_start timestamptz not null,
 	slot_end timestamptz not null,
 	timezone text not null default 'UTC',
+	reservation_token text,
 	status text not null default 'reserved',
 	reservation_expires_at timestamptz not null,
 	customer_email text,
@@ -33,9 +34,13 @@ create table if not exists bookings (
 	constraint bookings_slot_time_order check (slot_end > slot_start)
 );
 
+alter table bookings
+	add column if not exists reservation_token text;
+
 create index if not exists bookings_slot_id_idx on bookings (slot_id);
 create index if not exists bookings_status_idx on bookings (status);
 create index if not exists bookings_reservation_expires_idx on bookings (reservation_expires_at);
+create index if not exists bookings_reservation_token_idx on bookings (reservation_token);
 
 create table if not exists stripe_webhook_events (
 	id text primary key,
