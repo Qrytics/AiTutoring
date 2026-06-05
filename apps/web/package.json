@@ -23,6 +23,7 @@
 	"dependencies": {
 		"@aitutoring/shared": "*",
 		"@supabase/supabase-js": "^2.107.0",
-		"stripe": "^17.7.0"
+		"stripe": "^17.7.0",
+		"ws": "^8.21.0"
 	}
 }

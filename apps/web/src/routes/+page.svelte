@@ -111,11 +111,7 @@
 			{/each}
 		</div>
 	</div>
-			{/each}
-			<article class="card subject-card subject-card--project">
-				<h3 class="subject-card__title">
-				Learn how to make a website or create your dream project!
-				</h3>
+</section>
 
 <!-- ═══════════════════════════════════════════════ PRICING -->
 <section class="section" id="pricing" aria-label="Pricing">
