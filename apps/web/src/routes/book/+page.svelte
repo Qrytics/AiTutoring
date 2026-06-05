@@ -46,6 +46,7 @@
 	let reserveLoading = $state(false);
 	let reservedBooking = $state<ReservedBooking | null>(null);
 	const monthSlotsCache = new Map<string, Slot[]>();
+	let monthAvailability = $state<Record<string, boolean | undefined>>({});
 
 	const weekDayHeaders = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 	const businessHours = Array.from({ length: 15 }, (_, idx) => idx + 9);
@@ -276,6 +277,10 @@
 			}
 			const data = (await response.json()) as { slots: Slot[] };
 			monthSlotsCache.set(monthKey, data.slots);
+			monthAvailability = {
+				...monthAvailability,
+				[monthKey]: data.slots.length > 0
+			};
 
 			if (selectedMonthKey === monthKey) {
 				applyMonthSlots(data.slots);
@@ -415,6 +420,7 @@
 
 	onMount(async () => {
 		monthOptions = buildMonthOptions(12);
+		monthAvailability = Object.fromEntries(monthOptions.map((month) => [month.key, undefined]));
 		selectedMonthKey = monthOptions[0]?.key ?? null;
 
 		if (selectedMonthKey) {
@@ -472,6 +478,7 @@
 									type="button"
 									class="month-btn"
 									class:month-btn--selected={selectedMonthKey === month.key}
+									class:month-btn--unavailable={monthAvailability[month.key] === false}
 									role="option"
 									aria-selected={selectedMonthKey === month.key}
 									onclick={() => selectMonth(month.key)}
@@ -728,6 +735,17 @@
 		color: var(--accent);
 	}
 
+	.month-btn--unavailable {
+		color: var(--muter);
+		border-color: var(--border-2);
+		background: color-mix(in srgb, var(--panel) 86%, #77879f 14%);
+	}
+
+	.month-btn--unavailable:hover {
+		border-color: var(--border-2);
+		color: var(--muted);
+	}
+
 	.calendar-headings {
 		display: grid;
 		grid-template-columns: repeat(7, 1fr);
@@ -882,6 +900,12 @@
 	[data-theme='light'] .month-btn--selected {
 		background: color-mix(in srgb, var(--bg) 88%, var(--accent) 12%);
 		color: var(--accent);
+	}
+
+	[data-theme='light'] .month-btn--unavailable {
+		background: color-mix(in srgb, var(--bg) 88%, #9aa9a5 12%);
+		color: rgba(24, 65, 60, 0.46);
+		border-color: rgba(24, 65, 60, 0.16);
 	}
 
 	[data-theme='light'] .calendar-day:disabled {
