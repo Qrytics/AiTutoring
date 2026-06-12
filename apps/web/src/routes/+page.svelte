@@ -528,10 +528,6 @@
 		.meta-sep {
 			display: none;
 		}
-
-		.hero-action {
-			width: min(100%, 18rem);
-		}
 	}
 
 	/* ── Wide project CTA ─────────────────────────────── */
@@ -959,7 +955,7 @@
 		}
 
 		.hero-action {
-			width: 100%;
+			width: min(100%, 18rem);
 			text-align: center;
 		}
 
