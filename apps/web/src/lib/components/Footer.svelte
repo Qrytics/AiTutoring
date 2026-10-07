@@ -1,159 +1,120 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { tutor } from '$lib/data/tutor';
+	import { onSoundChange, playSound, setSoundEnabled, soundEnabled } from '$lib/sound';
+	import { toast } from '$lib/toast.svelte';
 
 	const year = new Date().getFullYear();
+	let soundOn = $state(true);
 
-	let toastVisible = $state(false);
-	let toastTimer: ReturnType<typeof setTimeout> | undefined;
+	onMount(() => {
+		soundOn = soundEnabled();
+		return onSoundChange((on) => (soundOn = on));
+	});
 
 	function copyEmail() {
-		navigator.clipboard.writeText(tutor.email).then(() => {
-			if (toastTimer !== undefined) clearTimeout(toastTimer);
-			toastVisible = true;
-			toastTimer = setTimeout(() => (toastVisible = false), 2500);
-		});
+		navigator.clipboard?.writeText(tutor.email).then(
+			() => toast('email copied'),
+			() => toast(tutor.email)
+		);
 	}
 
-	function backToTop() {
-		window.scrollTo({ top: 0, behavior: 'smooth' });
+	function toggleSound() {
+		setSoundEnabled(!soundOn);
+		if (!soundOn) playSound('pop');
 	}
 </script>
 
 <footer class="footer">
 	<div class="footer__inner">
-		<span>© {year} {tutor.name}</span>
-		<span class="footer__sep">·</span>
-		<button class="email-btn footer-link" onclick={copyEmail}>{tutor.email}</button>
-		<span class="footer__sep">·</span>
-		<a href={tutor.portfolioUrl} class="footer-link">portfolio</a>
-		<span class="footer__sep">·</span>
-		<a href={tutor.github} target="_blank" rel="noopener noreferrer" class="footer-link">
-			github
-		</a>
-		<span class="footer__sep">·</span>
-		<a href={tutor.linkedin} target="_blank" rel="noopener noreferrer" class="footer-link">
-			linkedin
-		</a>
+		<span class="footer__copy">© {year} {tutor.name}</span>
+		<button type="button" class="footer-link email-btn" onclick={copyEmail} aria-label="Copy email address {tutor.email}">
+			{tutor.email}
+		</button>
+		<nav class="footer__links" aria-label="Elsewhere">
+			<a href={tutor.portfolioUrl} class="footer-link">portfolio</a>
+			<a href={tutor.github} target="_blank" rel="noopener noreferrer" class="footer-link">github</a>
+			<a href={tutor.linkedin} target="_blank" rel="noopener noreferrer" class="footer-link">linkedin</a>
+		</nav>
+		<button type="button" class="sound-toggle" aria-pressed={!soundOn} onclick={toggleSound}>
+			<span aria-hidden="true">{soundOn ? '♪' : '♪̸'}</span> sound {soundOn ? 'on' : 'off'}
+		</button>
 	</div>
-	<button class="back-to-top footer-link" type="button" onclick={backToTop}>back to top ↑</button>
 </footer>
-
-{#if toastVisible}
-	<div class="toast" role="status" aria-live="polite">email copied to clipboard</div>
-{/if}
 
 <style>
 	.footer {
-		margin-top: clamp(2.25rem, 5vw, 3.5rem);
-		padding: 1.25rem clamp(1.25rem, 4vw, 3rem);
+		margin-top: clamp(2rem, 5vw, 3.5rem);
+		padding: 1.5rem clamp(1rem, 4vw, 3rem);
 		border-top: 1px solid var(--border-2);
-		position: relative;
-		z-index: 1;
 	}
 
 	.footer__inner {
+		max-width: 76rem;
+		margin: 0 auto;
 		display: flex;
 		flex-wrap: wrap;
-		gap: 0.75rem;
 		align-items: center;
-		justify-content: center;
+		gap: 0.6rem 1.5rem;
+		font-size: 0.88rem;
 		color: var(--muted);
-		font-size: 0.95rem;
-		max-width: 86rem;
-		margin: 0 auto;
-		font-family: var(--font-mono);
 	}
 
-	.footer__sep {
-		color: rgba(243, 246, 255, 0.35);
+	.footer__copy {
+		color: var(--muter);
 	}
 
-	@media (max-width: 36rem) {
-		.footer {
-			display: flex;
-			flex-direction: column;
-			align-items: center;
-			text-align: center;
-		}
-		.footer__inner {
-			flex-direction: column;
-			gap: 0.5rem;
-		}
-		.footer__sep {
-			display: none;
-		}
-		.back-to-top {
-			position: static;
-			transform: none;
-			margin-top: 1rem;
-		}
+	.footer__links {
+		display: flex;
+		gap: 1.1rem;
 	}
 
 	.footer-link {
-		color: rgba(54, 242, 194, 0.92);
+		color: var(--accent-text);
 		text-decoration: none;
-		border-bottom: 1px solid rgba(54, 242, 194, 0.3);
-		transition: border-color 0.14s ease, color 0.14s ease;
-		font-family: var(--font-mono);
+		border-bottom: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
 	}
 
 	.footer-link:hover {
-		color: var(--accent);
-		border-color: rgba(54, 242, 194, 0.55);
+		border-bottom-color: var(--accent);
 	}
 
 	.email-btn {
 		background: none;
-		border: none;
-		border-bottom: 1px solid rgba(54, 242, 194, 0.3);
+		border: 0;
+		border-bottom: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
 		padding: 0;
 		font: inherit;
 		cursor: pointer;
 	}
 
-	.back-to-top {
-		position: absolute;
-		right: clamp(1.25rem, 4vw, 3rem);
-		top: 50%;
-		transform: translateY(-50%);
-		background: none;
-		border: none;
-		padding: 0;
+	.sound-toggle {
+		margin-left: auto;
+		min-height: 2.25rem;
+		padding: 0 0.7rem;
+		border: 1px solid var(--border-2);
+		background: transparent;
+		color: var(--muter);
+		font: inherit;
+		font-size: 0.78rem;
 		cursor: pointer;
 	}
 
-	.back-to-top:focus-visible {
-		outline: 2px solid rgba(54, 242, 194, 0.6);
-		outline-offset: 4px;
+	.sound-toggle:hover {
+		color: var(--accent-text);
+		border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
 	}
 
-	.toast {
-		position: fixed;
-		bottom: 2rem;
-		left: 50%;
-		transform: translate(-50%);
-		background: var(--panel);
-		color: rgba(243, 246, 255, 0.92);
-		padding: 0.75rem 1.5rem;
-		border: 1px solid var(--border);
-		box-shadow: var(--shadow);
-		z-index: 1000;
-		text-align: center;
-		max-width: calc(100vw - 2rem);
-		white-space: nowrap;
-		font-family: var(--font-mono);
-		font-size: 0.9rem;
-		animation: toast-in 0.2s ease-out;
-	}
-
-	@keyframes toast-in {
-		from {
-			opacity: 0;
-			transform: translate(-50%) translateY(1rem);
+	@media (max-width: 640px) {
+		.footer__inner {
+			flex-direction: column;
+			text-align: center;
+			gap: 0.65rem;
 		}
-		to {
-			opacity: 1;
-			transform: translate(-50%) translateY(0);
+
+		.sound-toggle {
+			margin: 0.35rem 0 0;
+			min-height: 2.75rem;
 		}
 	}
 </style>

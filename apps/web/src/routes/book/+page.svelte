@@ -1,985 +1,1157 @@
 <script lang="ts">
+	import { onMount, tick } from 'svelte';
 	import { base } from '$app/paths';
-	import { onMount } from 'svelte';
-	import { tutor } from '$lib/data/tutor';
+	import { meetingPlatforms, session, subjects, tutor } from '$lib/data/tutor';
+	import { fmt, generateSlots, groupByDay, visitorTimeZone, type Slot, type SlotDay } from '$lib/schedule';
+	import {
+		availablePayMethods,
+		googleCalendarHref,
+		icsFile,
+		isEmail,
+		mailtoHref,
+		paymentNote,
+		requestBody,
+		requestSubject,
+		type BookingDetails,
+		type PayMethodId
+	} from '$lib/booking';
+	import { getItem, removeItem, setItem } from '$lib/storage';
+	import { playSound } from '$lib/sound';
+	import { toast } from '$lib/toast.svelte';
 
-	type Slot = {
-		id: string;
-		startTime: string;
-		endTime: string;
-	};
+	type Step = 1 | 2 | 3 | 4;
+	const DRAFT_KEY = 'tutoring-booking-draft';
+	const DRAFT_TTL_MS = 6 * 3_600_000;
+	const topics = [...subjects.map((s) => s.title), 'Something else'];
 
-	type ReservedBooking = {
-		bookingId: string;
-		slotId: string;
-		slotStart: string;
-		slotEnd: string;
-		reservationExpiresAt: string;
-	};
+	let ready = $state(false);
+	let step = $state<Step>(1);
+	let days = $state<SlotDay[]>([]);
+	let dayKey = $state<string | null>(null);
+	let slot = $state<Slot | null>(null);
+	let zone = $state('UTC');
 
-	type MonthOption = {
-		key: string;
-		label: string;
-	};
+	let details = $state<BookingDetails>({
+		name: '',
+		email: '',
+		topic: topics[0],
+		goals: '',
+		platform: meetingPlatforms[0]
+	});
+	let methodId = $state<PayMethodId | null>(null);
+	let paid = $state(false);
+	let triedNext = $state(false);
+	let confetti = $state(0);
 
-	type CalendarDayCell = {
-		day: number;
-		dayKey: string;
-		hasSlots: boolean;
-		isToday: boolean;
-	};
-	
-	type HourCell = {
-		hour: number;
-		label: string;
-		slot: Slot | null;
-	};
+	let panel = $state<HTMLElement | undefined>();
 
-	let loading = $state(true);
-	let loadError = $state<string | null>(null);
-	let reserveError = $state<string | null>(null);
-	let slots = $state<Slot[]>([]);
-	let selectedSlotId = $state<string | null>(null);
-	let monthOptions = $state<MonthOption[]>([]);
-	let selectedMonthKey = $state<string | null>(null);
-	let selectedDayKey = $state<string | null>(null);
-	let reserveLoading = $state(false);
-	let reservedBooking = $state<ReservedBooking | null>(null);
-	const monthSlotsCache = new Map<string, Slot[]>();
-	let monthAvailability = $state<Record<string, boolean | undefined>>({});
+	const day = $derived(days.find((d) => d.key === dayKey) ?? null);
+	const methods = $derived(slot ? availablePayMethods(slot) : []);
+	const method = $derived(methods.find((m) => m.id === methodId));
+	const detailsValid = $derived(details.name.trim().length > 1 && isEmail(details.email));
+	const subject = $derived(slot ? requestSubject(slot, details) : '');
+	const body = $derived(slot ? requestBody(slot, details, method, paid, zone) : '');
+	const zoneLabel = $derived(day ? fmt.zoneName(day.date, zone) : zone);
 
-	const weekDayHeaders = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-	const businessHours = Array.from({ length: 15 }, (_, idx) => idx + 9);
+	onMount(() => {
+		zone = visitorTimeZone();
+		days = groupByDay(generateSlots(), zone);
 
-	function toDayKey(date: Date): string {
-		const year = date.getFullYear();
-		const month = String(date.getMonth() + 1).padStart(2, '0');
-		const day = String(date.getDate()).padStart(2, '0');
-		return `${year}-${month}-${day}`;
-	}
+		const topic = new URLSearchParams(window.location.search).get('topic');
+		if (topic && topics.includes(topic)) details.topic = topic;
 
-	function toMonthKey(date: Date): string {
-		const year = date.getFullYear();
-		const month = String(date.getMonth() + 1).padStart(2, '0');
-		return `${year}-${month}`;
-	}
-
-	function dateFromDayKey(dayKey: string): Date {
-		const [year, month, day] = dayKey.split('-').map(Number);
-		return new Date(year, month - 1, day);
-	}
-
-	const slotsByDay = $derived.by(() => {
-		const groups = new Map<string, Slot[]>();
-
-		for (const slot of slots) {
-			const dayKey = toDayKey(new Date(slot.startTime));
-
-			if (!groups.has(dayKey)) {
-				groups.set(dayKey, []);
-			}
-			groups.get(dayKey)?.push(slot);
-		}
-
-		for (const daySlots of groups.values()) {
-			daySlots.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-		}
-
-		return groups;
+		restoreDraft();
+		dayKey ??= days[0]?.key ?? null;
+		ready = true;
 	});
 
-	const selectedDaySlots = $derived.by(() => {
-		if (!selectedDayKey) return [];
-		return slotsByDay.get(selectedDayKey) ?? [];
-	});
-
-	const selectedDayHourCells = $derived.by(() => {
-		if (!selectedDayKey) return [] as HourCell[];
-
-		const slotByHour = new Map<number, Slot>();
-		for (const slot of selectedDaySlots) {
-			const hour = new Date(slot.startTime).getHours();
-			slotByHour.set(hour, slot);
-		}
-
-		return businessHours.map((hour) => ({
-			hour,
-			label: formatHourLabel(hour),
-			slot: slotByHour.get(hour) ?? null
-		}));
-	});
-
-	const selectedDayLabel = $derived.by(() => {
-		if (!selectedDayKey) return null;
-		return new Intl.DateTimeFormat('en-US', {
-			weekday: 'long',
-			month: 'short',
-			day: 'numeric'
-		}).format(dateFromDayKey(selectedDayKey));
-	});
-
-	const calendarCells = $derived.by(() => {
-		if (!selectedMonthKey) return [] as Array<CalendarDayCell | null>;
-
-		const [yearStr, monthStr] = selectedMonthKey.split('-');
-		const year = Number(yearStr);
-		const monthIndex = Number(monthStr) - 1;
-
-		const firstDay = new Date(year, monthIndex, 1);
-		const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
-		const startOffset = firstDay.getDay();
-
-		const cells: Array<CalendarDayCell | null> = [];
-		for (let i = 0; i < startOffset; i += 1) {
-			cells.push(null);
-		}
-
-		const todayKey = toDayKey(new Date());
-		for (let day = 1; day <= daysInMonth; day += 1) {
-			const dayKey = `${selectedMonthKey}-${String(day).padStart(2, '0')}`;
-			cells.push({
-				day,
-				dayKey,
-				hasSlots: slotsByDay.has(dayKey),
-				isToday: dayKey === todayKey
-			});
-		}
-
-		return cells;
-	});
-
-	function buildMonthOptions(monthCount = 6): MonthOption[] {
-		const current = new Date();
-		const options: MonthOption[] = [];
-
-		for (let i = 0; i < monthCount; i += 1) {
-			const date = new Date(current.getFullYear(), current.getMonth() + i, 1);
-			options.push({
-				key: toMonthKey(date),
-				label: new Intl.DateTimeFormat('en-US', {
-					month: 'long',
-					year: 'numeric'
-				}).format(date)
-			});
-		}
-
-		return options;
-	}
-
-	function getMonthRangeIso(monthKey: string): { start: string; end: string } {
-		const [yearStr, monthStr] = monthKey.split('-');
-		const year = Number(yearStr);
-		const monthIndex = Number(monthStr) - 1;
-
-		const start = new Date(year, monthIndex, 1, 0, 0, 0, 0);
-		const end = new Date(year, monthIndex + 1, 1, 0, 0, 0, 0);
-
-		return {
-			start: start.toISOString(),
-			end: end.toISOString()
-		};
-	}
-
-	function getDayKeysFromSlots(slotList: Slot[]): string[] {
-		return Array.from(new Set(slotList.map((slot) => toDayKey(new Date(slot.startTime))))).sort();
-	}
-
-	function readStoredReservation(): ReservedBooking | null {
-		const raw = localStorage.getItem('reserved-booking');
-		if (!raw) return null;
-
+	// ── Draft: survives a trip out to Venmo / Cash App and back ──────────────
+	function restoreDraft() {
 		try {
-			const parsed = JSON.parse(raw) as Partial<ReservedBooking>;
-			if (!parsed.bookingId || !parsed.slotId || !parsed.slotStart || !parsed.slotEnd) {
-				return null;
+			const raw = getItem(DRAFT_KEY);
+			if (!raw) return;
+			const d = JSON.parse(raw);
+			if (Date.now() - d.savedAt > DRAFT_TTL_MS) return removeItem(DRAFT_KEY);
+			const found = days.flatMap((x) => x.slots).find((s) => s.id === d.slotId);
+			if (d.details) details = { ...details, ...d.details };
+			if (d.methodId) methodId = d.methodId;
+			paid = !!d.paid;
+			if (found) {
+				slot = found;
+				dayKey = days.find((x) => x.slots.includes(found))?.key ?? null;
+				step = Math.min(d.step ?? 1, 3) as Step;
 			}
-
-			return {
-				bookingId: parsed.bookingId,
-				slotId: parsed.slotId,
-				slotStart: parsed.slotStart,
-				slotEnd: parsed.slotEnd,
-				reservationExpiresAt: parsed.reservationExpiresAt ?? new Date().toISOString()
-			};
 		} catch {
-			return null;
+			removeItem(DRAFT_KEY);
 		}
 	}
 
-	function applyMonthSlots(slotList: Slot[]) {
-		slots = slotList;
-		const dayKeys = getDayKeysFromSlots(slotList);
-		selectedDayKey = dayKeys[0] ?? null;
-		selectedSlotId = null;
-		reserveError = null;
-		reservedBooking = null;
-	}
-
-	function formatTime(iso: string): string {
-		return new Intl.DateTimeFormat('en-US', {
-			hour: 'numeric',
-			minute: '2-digit'
-		}).format(new Date(iso));
-	}
-
-	function formatDateTimeRange(startIso: string, endIso: string): string {
-		const start = new Date(startIso);
-		const end = new Date(endIso);
-		const date = new Intl.DateTimeFormat('en-US', {
-			weekday: 'long',
-			month: 'long',
-			day: 'numeric'
-		}).format(start);
-		const time = `${formatTime(startIso)} - ${formatTime(endIso)}`;
-		return `${date}, ${time}`;
-	}
-
-	function formatHourLabel(hour: number): string {
-		const reference = new Date(2026, 0, 1, hour, 0, 0);
-		return new Intl.DateTimeFormat('en-US', {
-			hour: 'numeric',
-			minute: '2-digit'
-		}).format(reference);
-	}
-
-	async function loadSlotsForMonth(
-		monthKey: string,
-		options?: { showLoading?: boolean; forceRefresh?: boolean }
-	) {
-		const showLoading = options?.showLoading ?? false;
-		const forceRefresh = options?.forceRefresh ?? false;
-
-		if (!forceRefresh) {
-			const cached = monthSlotsCache.get(monthKey);
-			if (cached) {
-				applyMonthSlots(cached);
-				loadError = null;
-				if (showLoading) loading = false;
-				return;
-			}
-		}
-
-		if (showLoading) {
-			loading = true;
-		}
-
-		if (selectedMonthKey === monthKey) {
-			loadError = null;
-		}
-
-		try {
-			const range = getMonthRangeIso(monthKey);
-			const response = await fetch(
-				`${base}/api/availability?start=${encodeURIComponent(range.start)}&end=${encodeURIComponent(range.end)}`
-			);
-			if (!response.ok) {
-				throw new Error('Could not load availability. Please refresh and try again.');
-			}
-			const data = (await response.json()) as { slots: Slot[] };
-			monthSlotsCache.set(monthKey, data.slots);
-			monthAvailability = {
-				...monthAvailability,
-				[monthKey]: data.slots.length > 0
-			};
-
-			if (selectedMonthKey === monthKey) {
-				applyMonthSlots(data.slots);
-			}
-		} catch (err) {
-			if (selectedMonthKey === monthKey) {
-				loadError =
-					err instanceof Error ? err.message : 'Could not load availability. Please try again.';
-				slots = [];
-				selectedDayKey = null;
-				selectedSlotId = null;
-			}
-		} finally {
-			if (showLoading) {
-				loading = false;
-			}
-		}
-	}
-
-	async function prefetchRemainingMonths(activeMonthKey: string) {
-		const monthsToPrefetch = monthOptions
-			.map((month) => month.key)
-			.filter((monthKey) => monthKey !== activeMonthKey && !monthSlotsCache.has(monthKey));
-
-		await Promise.allSettled(monthsToPrefetch.map((monthKey) => loadSlotsForMonth(monthKey)));
-	}
-
-	async function retryLoad() {
-		if (!selectedMonthKey) return;
-		await loadSlotsForMonth(selectedMonthKey, { forceRefresh: true });
-	}
-
-	function selectDay(dayKey: string) {
-		selectedDayKey = dayKey;
-		selectedSlotId = null;
-		reserveError = null;
-		reservedBooking = null;
-	}
-
-	async function selectMonth(monthKey: string) {
-		if (monthKey === selectedMonthKey) return;
-		selectedMonthKey = monthKey;
-		await loadSlotsForMonth(monthKey);
-	}
-
-	function selectHourSlot(slot: Slot | null) {
-		if (!slot) return;
-		selectedSlotId = slot.id;
-		reserveError = null;
-		reservedBooking = null;
-	}
-
-	async function reserveSlot(
-		slotId: string,
-		options?: { silent?: boolean; setLoading?: boolean }
-	): Promise<ReservedBooking | null> {
-		const silent = options?.silent ?? false;
-		const setLoading = options?.setLoading ?? true;
-
-		if (setLoading) {
-			reserveLoading = true;
-		}
-
-		if (!silent) {
-			reserveError = null;
-		}
-
-		try {
-			const response = await fetch(`${base}/api/book-slot`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					slotId,
-					timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
-				})
-			});
-
-			if (!response.ok) {
-				const err = await response.json().catch(() => ({ message: 'Reservation failed.' }));
-				throw new Error(err.message ?? 'Reservation failed.');
-			}
-
-			const data = (await response.json()) as ReservedBooking;
-			reservedBooking = data;
-			selectedSlotId = data.slotId;
-			selectedDayKey = toDayKey(new Date(data.slotStart));
-			localStorage.setItem('reserved-booking', JSON.stringify(data));
-			return data;
-		} catch (err) {
-			if (!silent) {
-				reserveError =
-					err instanceof Error
-						? err.message
-						: 'Could not reserve slot. Please choose another time.';
-			}
-			return null;
-		} finally {
-			if (setLoading) {
-				reserveLoading = false;
-			}
-		}
-	}
-
-	async function silentlyRestoreReservationOnLoad() {
-		const stored = readStoredReservation();
-		if (!stored) return;
-
-		const slotStart = new Date(stored.slotStart);
-		if (Number.isNaN(slotStart.getTime()) || slotStart <= new Date()) {
-			localStorage.removeItem('reserved-booking');
-			return;
-		}
-
-		const targetMonthKey = toMonthKey(slotStart);
-		if (targetMonthKey !== selectedMonthKey) {
-			selectedMonthKey = targetMonthKey;
-			await loadSlotsForMonth(targetMonthKey);
-		}
-
-		const refreshed = await reserveSlot(stored.slotId, { silent: true, setLoading: false });
-		if (!refreshed) {
-			localStorage.removeItem('reserved-booking');
-			return;
-		}
-
-		selectedMonthKey = toMonthKey(new Date(refreshed.slotStart));
-	}
-
-	async function reserveSelectedSlot() {
-		if (!selectedSlotId) {
-			reserveError = 'Please select a time slot first.';
-			return;
-		}
-
-		await reserveSlot(selectedSlotId, { silent: false, setLoading: true });
-	}
-
-	onMount(async () => {
-		monthOptions = buildMonthOptions(12);
-		monthAvailability = Object.fromEntries(monthOptions.map((month) => [month.key, undefined]));
-		selectedMonthKey = monthOptions[0]?.key ?? null;
-
-		if (selectedMonthKey) {
-			await loadSlotsForMonth(selectedMonthKey, { showLoading: true });
-			await silentlyRestoreReservationOnLoad();
-			void prefetchRemainingMonths(selectedMonthKey);
-		} else {
-			loading = false;
-		}
+	$effect(() => {
+		if (!ready || step === 4) return;
+		setItem(
+			DRAFT_KEY,
+			JSON.stringify({ slotId: slot?.id, details, methodId, paid, step, savedAt: Date.now() })
+		);
 	});
+
+	// ── Navigation ───────────────────────────────────────────────────────────
+	async function goto(next: Step) {
+		step = next;
+		triedNext = false;
+		await tick();
+		panel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+		panel?.querySelector<HTMLElement>('h2')?.focus({ preventScroll: true });
+	}
+
+	function pickDay(key: string) {
+		dayKey = key;
+		playSound('tick', 0.15);
+	}
+
+	function pickSlot(s: Slot) {
+		slot = s;
+		playSound('click', 0.2);
+	}
+
+	function toDetails() {
+		if (!slot) return;
+		playSound('pop', 0.2);
+		goto(2);
+	}
+
+	function toPay() {
+		triedNext = true;
+		if (!detailsValid) {
+			panel?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+			return;
+		}
+		playSound('pop', 0.2);
+		if (!methodId && methods.length === 1) methodId = methods[0].id;
+		goto(3);
+	}
+
+	function sendRequest() {
+		// The <a href="mailto:"> does the navigation; this only records it and moves on.
+		playSound('complete', 0.25);
+		confetti += 1;
+		removeItem(DRAFT_KEY);
+		setTimeout(() => goto(4), 120);
+	}
+
+	async function copy(text: string, label: string) {
+		try {
+			await navigator.clipboard.writeText(text);
+			toast(`${label} copied`);
+			playSound('tick', 0.18);
+		} catch {
+			toast('Copy failed — select the text instead');
+		}
+	}
+
+	function downloadIcs() {
+		if (!slot) return;
+		const url = URL.createObjectURL(new Blob([icsFile(slot, details)], { type: 'text/calendar' }));
+		const a = Object.assign(document.createElement('a'), { href: url, download: 'tutoring-session.ics' });
+		a.click();
+		setTimeout(() => URL.revokeObjectURL(url), 1000);
+	}
+
+	function startOver() {
+		removeItem(DRAFT_KEY);
+		slot = null;
+		methodId = null;
+		paid = false;
+		days = groupByDay(generateSlots(), zone);
+		dayKey = days[0]?.key ?? null;
+		goto(1);
+	}
+
+	const stepLabels = ['time', 'details', 'pay & send', 'done'];
 </script>
 
-<svelte:head>
-	<title>Tutoring</title>
-</svelte:head>
-
-<div class="page">
-	<div class="page__inner">
-		<a href="{base}/" class="back-link">← back to tutoring home</a>
-
-		<h1 class="page-title">Book a Session</h1>
-		<p class="page-lead">
-			Choose an available 60-minute slot below. Your selection is held for 15 minutes so you can
-			complete payment.
+<div class="book">
+	<header class="book__head">
+		<a href="{base}/" class="back">← tutoring home</a>
+		<h1 class="book__title">Book a session</h1>
+		<p class="book__lead">
+			{session.minutes} minutes · ${session.price} · live on video. Takes about a minute — no account needed.
 		</p>
 
-		<ol class="steps" aria-label="Booking steps">
-			<li class="step step--active" aria-current="step">
-				<span class="step__num">1</span>
-				<span class="step__label">Pick a time</span>
-			</li>
-			<li class="step">
-				<span class="step__num">2</span>
-				<span class="step__label">Pay securely</span>
-			</li>
-			<li class="step">
-				<span class="step__num">3</span>
-				<span class="step__label">Join &amp; learn</span>
-			</li>
+		<ol class="progress" aria-label="Booking progress">
+			{#each stepLabels as label, i (label)}
+				{@const n = (i + 1) as Step}
+				<li
+					class="progress__step"
+					class:progress__step--done={step > n}
+					class:progress__step--current={step === n}
+					aria-current={step === n ? 'step' : undefined}
+				>
+					<span class="progress__num">{step > n ? '✓' : n}</span>
+					<span class="progress__label">{label}</span>
+				</li>
+			{/each}
 		</ol>
+	</header>
 
-		<div class="scheduler-card">
-			{#if loading}
-				<p class="status-msg">Loading available times...</p>
-			{:else if loadError}
-				<p class="error-msg" role="alert">{loadError}</p>
-				<button class="btn btn--ghost" onclick={retryLoad}>Try again</button>
+	<section class="panel" bind:this={panel} aria-live="polite">
+		{#if !ready}
+			<div class="skeleton" aria-label="Loading available times">
+				<div class="skeleton__row"></div>
+				<div class="skeleton__grid">{#each Array(6) as _, i (i)}<div></div>{/each}</div>
+			</div>
+		{:else if step === 1}
+			<!-- ─────────────────────────────── 1 · TIME -->
+			<h2 class="panel__title" tabindex="-1">Pick a time</h2>
+			<p class="panel__hint">Shown in your time zone — <strong>{zoneLabel}</strong>.</p>
+
+			{#if days.length === 0}
+				<div class="empty">
+					<p>No open slots in the next few weeks.</p>
+					<a class="btn btn--ghost" href="mailto:{tutor.email}?subject=Tutoring%20availability">email me for a time</a>
+				</div>
 			{:else}
-				<div class="picker-grid">
-					<section class="picker-block" aria-label="Choose month">
-						<p class="picker-title">1. Choose month</p>
-						<div class="month-list" role="listbox" aria-label="Available months">
-							{#each monthOptions as month}
-								<button
-									type="button"
-									class="month-btn"
-									class:month-btn--selected={selectedMonthKey === month.key}
-									class:month-btn--unavailable={monthAvailability[month.key] === false}
-									role="option"
-									aria-selected={selectedMonthKey === month.key}
-									onclick={() => selectMonth(month.key)}
-								>
-									{month.label}
-								</button>
-							{/each}
-						</div>
-					</section>
+				<div class="days" role="listbox" aria-label="Day">
+					{#each days as d (d.key)}
+						<button
+							type="button"
+							role="option"
+							class="day"
+							aria-selected={d.key === dayKey}
+							onclick={() => pickDay(d.key)}
+						>
+							<span class="day__wd">{fmt.weekday(d.date)}</span>
+							<span class="day__num">{fmt.dayNum(d.date)}</span>
+							<span class="day__mo">{fmt.month(d.date)}</span>
+							<span class="day__count">{d.slots.length} open</span>
+						</button>
+					{/each}
+				</div>
 
-					<section class="picker-block" aria-label="Choose day">
-						<p class="picker-title">2. Choose day</p>
-						<div class="calendar-headings">
-							{#each weekDayHeaders as header}
-								<span>{header}</span>
-							{/each}
-						</div>
-						<div class="calendar-grid">
-							{#each calendarCells as cell}
-								{#if !cell}
-									<div class="calendar-day calendar-day--empty" aria-hidden="true"></div>
-								{:else}
-									<button
-										type="button"
-										class="calendar-day"
-										class:calendar-day--today={cell.isToday}
-										class:calendar-day--selected={selectedDayKey === cell.dayKey}
-										disabled={!cell.hasSlots}
-										onclick={() => selectDay(cell.dayKey)}
-									>
-										{cell.day}
-									</button>
-								{/if}
-							{/each}
-						</div>
-					</section>
+				{#if day}
+					<h3 class="times__label">{fmt.long(day.date)}</h3>
+					<div class="times" role="listbox" aria-label="Start time">
+						{#each day.slots as s (s.id)}
+							<button
+								type="button"
+								role="option"
+								class="time"
+								aria-selected={slot?.id === s.id}
+								onclick={() => pickSlot(s)}
+							>
+								{fmt.time(s.start)}
+							</button>
+						{/each}
+					</div>
+				{/if}
+			{/if}
 
-					<section class="picker-block" aria-label="Choose hour">
-						<p class="picker-title">3. Choose hour</p>
-						{#if selectedDayLabel}
-							<p class="selected-day-label">{selectedDayLabel}</p>
-						{/if}
+			<div class="actions">
+				<p class="actions__summary">
+					{#if slot}<strong>{fmt.weekday(slot.start)}, {fmt.month(slot.start)} {fmt.dayNum(slot.start)}</strong> · {fmt.time(slot.start)}{:else}Choose a start time{/if}
+				</p>
+				<button type="button" class="btn btn--solid" disabled={!slot} onclick={toDetails}>continue →</button>
+			</div>
+		{:else if step === 2 && slot}
+			<!-- ─────────────────────────────── 2 · DETAILS -->
+			<h2 class="panel__title" tabindex="-1">About you</h2>
+			<p class="panel__hint">So I can prepare — and know where to send the confirmation.</p>
 
-						{#if !selectedDayKey}
-							<p class="status-msg">
-								{slots.length === 0
-									? `No slots are available in this month. Try another month or email ${tutor.email}.`
-									: 'Choose a highlighted day to see available hours.'}
-							</p>
+			<form class="form" onsubmit={(e) => (e.preventDefault(), toPay())} novalidate>
+				<label class="field">
+					<span class="field__label">Name</span>
+					<input
+						type="text"
+						autocomplete="name"
+						bind:value={details.name}
+						aria-invalid={triedNext && details.name.trim().length < 2}
+						placeholder="Ada Lovelace"
+					/>
+					{#if triedNext && details.name.trim().length < 2}<span class="field__err">Add your name</span>{/if}
+				</label>
+
+				<label class="field">
+					<span class="field__label">Email</span>
+					<input
+						type="email"
+						autocomplete="email"
+						inputmode="email"
+						bind:value={details.email}
+						aria-invalid={triedNext && !isEmail(details.email)}
+						placeholder="you@example.com"
+					/>
+					{#if triedNext && !isEmail(details.email)}<span class="field__err">Enter a valid email</span>{/if}
+				</label>
+
+				<fieldset class="field">
+					<legend class="field__label">Topic</legend>
+					<div class="chips">
+						{#each topics as t (t)}
+							<label class="chip">
+								<input type="radio" name="topic" value={t} bind:group={details.topic} />
+								<span>{t}</span>
+							</label>
+						{/each}
+					</div>
+				</fieldset>
+
+				<label class="field">
+					<span class="field__label">What do you want to work on? <em>(optional)</em></span>
+					<textarea
+						rows="4"
+						bind:value={details.goals}
+						placeholder="e.g. My React app re-renders forever when I fetch data. Exam on recursion next week."
+					></textarea>
+				</label>
+
+				<fieldset class="field">
+					<legend class="field__label">Video platform</legend>
+					<div class="chips">
+						{#each meetingPlatforms as p (p)}
+							<label class="chip">
+								<input type="radio" name="platform" value={p} bind:group={details.platform} />
+								<span>{p}</span>
+							</label>
+						{/each}
+					</div>
+				</fieldset>
+
+				<div class="actions">
+					<button type="button" class="btn btn--ghost" onclick={() => goto(1)}>← time</button>
+					<button type="submit" class="btn btn--solid">continue →</button>
+				</div>
+			</form>
+		{:else if step === 3 && slot}
+			<!-- ─────────────────────────────── 3 · PAY & SEND -->
+			<h2 class="panel__title" tabindex="-1">Pay &amp; send your request</h2>
+
+			<dl class="summary">
+				<div class="summary__head">
+					<span>your session</span>
+					<button type="button" class="summary__edit" onclick={() => goto(1)}>change</button>
+				</div>
+				<div><dt>when</dt><dd>{fmt.long(slot.start)}, {fmt.time(slot.start)} <span class="muted">({zoneLabel})</span></dd></div>
+				<div><dt>topic</dt><dd>{details.topic}</dd></div>
+				<div><dt>on</dt><dd>{details.platform}</dd></div>
+				<div><dt>total</dt><dd class="summary__price">${session.price}</dd></div>
+			</dl>
+
+			{#if methods.length === 0}
+				<p class="notice">
+					Payment details will come with my confirmation email — just send the request below.
+				</p>
+			{:else}
+				<fieldset class="field">
+					<legend class="field__label">1 · Pay ${session.price} with</legend>
+					<div class="methods">
+						{#each methods as m (m.id)}
+							<label class="method" class:method--on={methodId === m.id}>
+								<input type="radio" name="method" value={m.id} bind:group={methodId} onchange={() => playSound('tick', 0.18)} />
+								<span class="method__name">{m.label}</span>
+								<span class="method__handle">{m.handle}</span>
+							</label>
+						{/each}
+					</div>
+				</fieldset>
+
+				{#if method}
+					<div class="paybox">
+						<p class="paybox__hint">{method.hint}</p>
+						{#if method.href}
+							<a class="btn btn--solid btn--block" href={method.href} target="_blank" rel="noopener noreferrer" onclick={() => playSound('pop', 0.2)}>
+								pay ${session.price} on {method.label} ↗
+							</a>
 						{:else}
-							<div class="slot-grid">
-								{#each selectedDayHourCells as hourCell}
-									<button
-										type="button"
-										class="slot-btn"
-										class:slot-btn--selected={hourCell.slot !== null && selectedSlotId === hourCell.slot.id}
-										class:slot-btn--unavailable={hourCell.slot === null}
-										disabled={hourCell.slot === null}
-										onclick={() => selectHourSlot(hourCell.slot)}
-									>
-										{hourCell.label}
-									</button>
-								{/each}
+							<div class="copyrow">
+								<code>{method.handle}</code>
+								<button type="button" class="btn btn--ghost" onclick={() => copy(method.handle, 'Zelle address')}>copy</button>
 							</div>
-							<p class="hours-note">Gray times are unavailable or already reserved.</p>
 						{/if}
-					</section>
-				</div>
-
-				<div class="reserve-action">
-					<button
-						type="button"
-						class="btn btn--primary"
-						disabled={!selectedSlotId || reserveLoading}
-						onclick={reserveSelectedSlot}
-					>
-						{reserveLoading ? 'Reserving...' : 'Reserve selected slot'}
-					</button>
-				</div>
+						<div class="copyrow copyrow--note">
+							<span class="muted">note:</span> <code>{paymentNote(slot)}</code>
+							<button type="button" class="linkbtn" onclick={() => copy(paymentNote(slot!), 'Note')}>copy</button>
+						</div>
+						<label class="check">
+							<input type="checkbox" bind:checked={paid} />
+							<span>I've sent the payment</span>
+						</label>
+					</div>
+				{/if}
 			{/if}
 
-			{#if reserveError}
-				<p class="error-msg" role="alert">{reserveError}</p>
-			{/if}
+			<div class="field">
+				<p class="field__label">{methods.length ? '2 · ' : ''}Send the request</p>
+				<a
+					class="btn btn--solid btn--block btn--lg"
+					class:btn--disabled={methods.length > 0 && !method}
+					aria-disabled={methods.length > 0 && !method}
+					href={methods.length > 0 && !method ? undefined : mailtoHref(subject, body)}
+					onclick={sendRequest}
+				>
+					✉ send booking request
+				</a>
+				<p class="panel__hint panel__hint--center">
+					{#if methods.length > 0 && !method}
+						Choose how you'll pay first.
+					{:else}
+						Opens your email app with everything filled in — just hit send. I'll confirm with a meeting link.
+					{/if}
+				</p>
+			</div>
 
-			{#if reservedBooking}
-				<div class="reservation-success">
-					<p class="reservation-success__title">Time reserved</p>
-					<p>{formatDateTimeRange(reservedBooking.slotStart, reservedBooking.slotEnd)}</p>
-					<p>
-						Hold expires at
-						<strong>{new Date(reservedBooking.reservationExpiresAt).toLocaleTimeString()}</strong>.
-					</p>
-					<a href="{base}/checkout?bookingId={reservedBooking.bookingId}" class="btn btn--primary"
-						>Continue to payment →</a
-					>
+			<div class="actions">
+				<button type="button" class="btn btn--ghost" onclick={() => goto(2)}>← details</button>
+			</div>
+		{:else if step === 4 && slot}
+			<!-- ─────────────────────────────── 4 · DONE -->
+			<div class="done">
+				{#key confetti}
+					<div class="confetti" aria-hidden="true">
+						{#each Array(18) as _, i (i)}<i style="--i:{i}"></i>{/each}
+					</div>
+				{/key}
+				<h2 class="panel__title" tabindex="-1">Request ready to send ✓</h2>
+				<p class="panel__hint">
+					Once you hit send in your email app, I'll reply with a confirmation and the {details.platform} link —
+					usually within a few hours.
+				</p>
+
+				<div class="done__card">
+					<p class="done__when">{fmt.long(slot.start)}</p>
+					<p class="done__time">{fmt.time(slot.start)} – {fmt.time(slot.end)} <span class="muted">{zoneLabel}</span></p>
+					<p class="muted">{details.topic} · {details.platform}</p>
 				</div>
-			{/if}
-		</div>
-	</div>
+
+				<div class="done__actions">
+					<a class="btn btn--ghost" href={googleCalendarHref(slot, details)} target="_blank" rel="noopener noreferrer">+ Google Calendar</a>
+					<button type="button" class="btn btn--ghost" onclick={downloadIcs}>+ Apple / Outlook (.ics)</button>
+				</div>
+
+				<details class="fallback">
+					<summary>Email app didn't open?</summary>
+					<p class="panel__hint">Copy this and send it to <strong>{tutor.email}</strong>:</p>
+					<pre class="fallback__body">{subject}
+
+{body}</pre>
+					<div class="done__actions">
+						<button type="button" class="btn btn--ghost" onclick={() => copy(`${subject}\n\n${body}`, 'Request')}>copy request</button>
+						<button type="button" class="btn btn--ghost" onclick={() => copy(tutor.email, 'Email')}>copy my email</button>
+					</div>
+				</details>
+
+				<button type="button" class="linkbtn" onclick={startOver}>book another session</button>
+			</div>
+		{/if}
+	</section>
 </div>
 
 <style>
-	.page {
-		padding: clamp(2rem, 4vw, 3.5rem) 0;
-		position: relative;
-		z-index: 1;
-	}
-
-	.page__inner {
-		max-width: 72rem;
+	.book {
+		max-width: 52rem;
 		margin: 0 auto;
-		padding: 0 clamp(1.25rem, 4vw, 3rem);
+		padding: clamp(1.25rem, 4vw, 2.5rem) clamp(1rem, 4vw, 2rem) 1rem;
 	}
 
-	.back-link {
-		display: inline-block;
-		font-size: 0.85rem;
-		color: var(--muted);
-		text-decoration: none;
-		margin-bottom: 1.5rem;
-		transition: color 0.15s;
-	}
-
-	.back-link:hover {
-		color: var(--accent);
-	}
-
-	.page-title {
-		font-size: clamp(1.35rem, 3vw, 2rem);
-		margin-bottom: 0.6rem;
-	}
-
-	.page-lead {
-		font-size: 0.95rem;
-		color: var(--muted);
-		line-height: 1.6;
-		margin-bottom: 2rem;
-		max-width: 56ch;
-	}
-
-	.steps {
-		display: flex;
-		gap: 0;
-		list-style: none;
-		margin-bottom: 2rem;
-		border: 1px solid var(--border);
-		overflow: hidden;
-	}
-
-	.step {
-		display: flex;
-		align-items: center;
-		gap: 0.6rem;
-		padding: 0.7rem 1.1rem;
-		flex: 1;
-		background: var(--panel);
-		border-right: 1px solid var(--border);
-		font-size: 0.85rem;
+	.back {
 		color: var(--muter);
+		font-size: 0.82rem;
+		text-decoration: none;
 	}
 
-	.step:last-child {
-		border-right: none;
+	.back:hover {
+		color: var(--accent-text);
 	}
 
-	.step--active {
-		background: rgba(54, 242, 194, 0.06);
-		color: var(--accent);
+	.book__title {
+		margin-top: 0.9rem;
+		font-size: clamp(1.6rem, 4vw, 2.2rem);
+		letter-spacing: -0.02em;
 	}
 
-	.step__num {
-		display: inline-grid;
-		place-items: center;
-		width: 1.4rem;
-		height: 1.4rem;
-		border: 1px solid currentColor;
-		font-size: 0.72rem;
-		font-family: var(--font-mono);
-	}
-
-	.step__label {
-		font-family: var(--font-mono);
-	}
-
-	.scheduler-card {
-		border: 1px solid var(--border);
-		background: var(--panel);
-		padding: 1.25rem;
-		display: flex;
-		flex-direction: column;
-		gap: 1.15rem;
-	}
-
-	.status-msg {
+	.book__lead {
+		margin-top: 0.4rem;
 		color: var(--muted);
 		font-size: 0.92rem;
 	}
 
-	.picker-grid {
+	/* ── Progress ─────────────────────────────────────── */
+	.progress {
 		display: grid;
-		grid-template-columns: 240px minmax(280px, 420px) minmax(260px, 1fr);
-		gap: 1rem;
-		align-items: start;
+		grid-template-columns: repeat(4, 1fr);
+		gap: 0.35rem;
+		margin: 1.5rem 0 1rem;
+		list-style: none;
 	}
 
-	.picker-block {
+	.progress__step {
 		display: flex;
-		flex-direction: column;
-		gap: 0.65rem;
-		padding: 0.9rem;
-		background: var(--panel-2);
-		border: 1px solid var(--border);
-		min-height: 100%;
-	}
-
-	.picker-title {
-		font-size: 0.75rem;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		font-family: var(--font-mono);
-		color: var(--accent);
-	}
-
-	.month-list {
-		display: flex;
-		flex-direction: column;
+		align-items: center;
 		gap: 0.5rem;
-		max-height: 26rem;
-		overflow-y: auto;
-		padding-right: 0.1rem;
+		padding-top: 0.6rem;
+		border-top: 2px solid var(--border);
+		color: var(--muter);
+		font-size: 0.78rem;
 	}
 
-	.month-btn {
-		text-align: left;
-		padding: 0.55rem 0.65rem;
-		border: 1px solid var(--border);
-		background: transparent;
-		color: var(--muted);
-		font-family: var(--font-mono);
-		font-size: 0.85rem;
-		cursor: pointer;
-		transition: border-color 0.14s, background-color 0.14s, color 0.14s;
-	}
-
-	.month-btn:hover {
-		border-color: rgba(54, 242, 194, 0.45);
+	.progress__step--current {
+		border-color: var(--accent);
 		color: var(--text);
 	}
 
-	.month-btn--selected {
-		border-color: rgba(54, 242, 194, 0.7);
-		background: rgba(54, 242, 194, 0.12);
-		color: var(--accent);
+	.progress__step--done {
+		border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+		color: var(--accent-text);
 	}
 
-	.month-btn--unavailable {
+	.progress__num {
+		display: grid;
+		place-items: center;
+		width: 1.4rem;
+		height: 1.4rem;
+		flex-shrink: 0;
+		border: 1px solid currentColor;
+		font-size: 0.7rem;
+	}
+
+	/* ── Panel ────────────────────────────────────────── */
+	.panel {
+		padding: clamp(1.1rem, 3vw, 1.75rem);
+		border: 1px solid var(--border);
+		background: var(--panel);
+		scroll-margin-top: 5rem;
+	}
+
+	.panel__title {
+		font-size: 1.2rem;
+		outline: none;
+	}
+
+	.panel__hint {
+		margin-top: 0.35rem;
+		color: var(--muted);
+		font-size: 0.86rem;
+		line-height: 1.6;
+	}
+
+	.panel__hint--center {
+		text-align: center;
+		margin-top: 0.6rem;
+	}
+
+	.panel__hint strong {
+		color: var(--text);
+	}
+
+	.muted {
 		color: var(--muter);
-		border-color: var(--border-2);
-		background: color-mix(in srgb, var(--panel) 86%, #77879f 14%);
 	}
 
-	.month-btn--unavailable:hover {
-		border-color: var(--border-2);
+	/* ── Days / times ─────────────────────────────────── */
+	.days {
+		display: flex;
+		gap: 0.45rem;
+		margin: 1.25rem -0.25rem 0;
+		padding: 0.25rem 0.25rem 0.75rem;
+		overflow-x: auto;
+		scroll-snap-type: x proximity;
+		scrollbar-width: thin;
+	}
+
+	.day {
+		display: grid;
+		justify-items: center;
+		gap: 0.1rem;
+		flex: 0 0 4.6rem;
+		padding: 0.6rem 0.3rem;
+		border: 1px solid var(--border);
+		background: var(--panel-2);
+		color: var(--muted);
+		font: inherit;
+		cursor: pointer;
+		scroll-snap-align: start;
+		transition: border-color 0.14s, background-color 0.14s, transform 0.14s;
+	}
+
+	.day:hover {
+		border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+	}
+
+	.day[aria-selected='true'] {
+		border-color: var(--accent);
+		background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+		color: var(--text);
+		transform: translateY(-2px);
+	}
+
+	.day__wd,
+	.day__mo {
+		font-size: 0.7rem;
+		text-transform: lowercase;
+	}
+
+	.day__num {
+		color: var(--text);
+		font-size: 1.35rem;
+		font-weight: 700;
+		line-height: 1.2;
+	}
+
+	.day__count {
+		margin-top: 0.2rem;
+		color: var(--accent-text);
+		font-size: 0.64rem;
+	}
+
+	.times__label {
+		margin: 1rem 0 0.6rem;
+		color: var(--muted);
+		font-size: 0.84rem;
+		font-weight: 400;
+	}
+
+	.times {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
+		gap: 0.45rem;
+	}
+
+	.time {
+		min-height: 2.9rem;
+		border: 1px solid var(--border);
+		background: var(--panel);
+		color: var(--text);
+		font: inherit;
+		font-size: 0.9rem;
+		cursor: pointer;
+		transition: border-color 0.14s, background-color 0.14s;
+	}
+
+	.time:hover {
+		border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+	}
+
+	.time[aria-selected='true'] {
+		border-color: var(--accent);
+		background: var(--accent);
+		color: #04130f;
+		font-weight: 700;
+	}
+
+	:global([data-theme='light']) .time[aria-selected='true'] {
+		background: var(--accent-text);
+		border-color: var(--accent-text);
+		color: #fff;
+	}
+
+	.empty {
+		display: grid;
+		justify-items: start;
+		gap: 0.8rem;
+		margin-top: 1.25rem;
 		color: var(--muted);
 	}
 
-	.calendar-headings {
+	/* ── Actions (sticky on phones) ───────────────────── */
+	.actions {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		margin-top: 1.5rem;
+		padding-top: 1.1rem;
+		border-top: 1px solid var(--border-2);
+	}
+
+	.actions__summary {
+		color: var(--muted);
+		font-size: 0.86rem;
+	}
+
+	.actions__summary strong {
+		color: var(--text);
+	}
+
+	/* ── Buttons ──────────────────────────────────────── */
+	.btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.4rem;
+		min-height: 2.75rem;
+		padding: 0 1.1rem;
+		border: 1px solid var(--border);
+		background: var(--panel);
+		color: var(--text);
+		font: inherit;
+		font-size: 0.9rem;
+		text-decoration: none;
+		cursor: pointer;
+		transition: background-color 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s;
+	}
+
+	.btn--lg {
+		min-height: 3.25rem;
+		font-size: 0.98rem;
+	}
+
+	.btn--block {
+		width: 100%;
+	}
+
+	.btn--ghost:hover {
+		border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+		color: var(--accent-text);
+	}
+
+	.btn--solid {
+		border-color: var(--accent);
+		background: var(--accent);
+		color: #04130f;
+		font-weight: 700;
+	}
+
+	.btn--solid:hover {
+		background: color-mix(in srgb, var(--accent) 85%, #fff);
+	}
+
+	:global([data-theme='light']) .btn--solid {
+		border-color: var(--accent-text);
+		background: var(--accent-text);
+		color: #fff;
+	}
+
+	:global([data-theme='light']) .btn--solid:hover {
+		background: var(--clr-primary-a30);
+	}
+
+	.btn:disabled,
+	.btn--disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
+		pointer-events: none;
+	}
+
+	.linkbtn {
+		border: 0;
+		background: none;
+		padding: 0.3rem;
+		color: var(--accent-text);
+		font: inherit;
+		font-size: 0.82rem;
+		text-decoration: underline;
+		cursor: pointer;
+	}
+
+	/* ── Form ─────────────────────────────────────────── */
+	.form {
 		display: grid;
-		grid-template-columns: repeat(7, 1fr);
-		gap: 0.25rem;
-		font-family: var(--font-mono);
-		font-size: 0.68rem;
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
+		gap: 1.15rem;
+		margin-top: 1.25rem;
+	}
+
+	.field {
+		display: grid;
+		gap: 0.45rem;
+		margin-top: 1.25rem;
+		border: 0;
+		min-width: 0;
+	}
+
+	.form .field {
+		margin-top: 0;
+	}
+
+	.field__label {
+		padding: 0;
+		color: var(--muted);
+		font-size: 0.8rem;
+	}
+
+	.field__label em {
+		color: var(--muter);
+		font-style: normal;
+	}
+
+	input[type='text'],
+	input[type='email'],
+	textarea {
+		width: 100%;
+		padding: 0.75rem 0.85rem;
+		border: 1px solid var(--border);
+		background: var(--bg);
+		color: var(--text);
+		font: inherit;
+		/* 16px floor so iOS doesn't zoom into the field. */
+		font-size: max(16px, 0.9rem);
+		resize: vertical;
+	}
+
+	input:focus,
+	textarea:focus {
+		outline: none;
+		border-color: var(--accent);
+		box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+	}
+
+	[aria-invalid='true'] {
+		border-color: var(--hot);
+	}
+
+	.field__err {
+		color: var(--hot);
+		font-size: 0.78rem;
+	}
+
+	:global([data-theme='light']) .field__err {
+		color: #b42318;
+	}
+
+	.chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+	}
+
+	.chip input,
+	.method input {
+		position: absolute;
+		opacity: 0;
+		pointer-events: none;
+	}
+
+	.chip span {
+		display: inline-flex;
+		align-items: center;
+		min-height: 2.5rem;
+		padding: 0 0.85rem;
+		border: 1px solid var(--border);
+		color: var(--muted);
+		font-size: 0.84rem;
+		cursor: pointer;
+	}
+
+	.chip input:checked + span {
+		border-color: var(--accent);
+		background: color-mix(in srgb, var(--accent) 12%, transparent);
+		color: var(--accent-text);
+	}
+
+	.chip input:focus-visible + span,
+	.method:focus-within {
+		outline: 2px solid var(--focus-ring);
+		outline-offset: 2px;
+	}
+
+	/* ── Summary / pay ────────────────────────────────── */
+	.summary {
+		display: grid;
+		gap: 0.45rem;
+		margin-top: 1.1rem;
+		padding: 1rem 1.1rem;
+		border: 1px solid var(--border-2);
+		background: var(--panel-2);
+		font-size: 0.88rem;
+	}
+
+	.summary div {
+		display: grid;
+		grid-template-columns: 4.5rem 1fr;
+	}
+
+	.summary dt {
 		color: var(--muter);
 	}
 
-	.calendar-headings span {
+	.summary__price {
+		font-weight: 700;
+	}
+
+	.summary .summary__head {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: 0.2rem;
+		color: var(--muter);
+		font-size: 0.74rem;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+	}
+
+	.summary__edit {
+		border: 0;
+		background: none;
+		color: var(--accent-text);
+		font: inherit;
+		font-size: 0.8rem;
+		letter-spacing: 0;
+		text-transform: none;
+		text-decoration: underline;
+		cursor: pointer;
+		padding: 0.3rem;
+	}
+
+	.notice {
+		margin-top: 1.1rem;
+		padding: 0.85rem 1rem;
+		border-left: 2px solid var(--accent);
+		background: color-mix(in srgb, var(--accent) 7%, transparent);
+		color: var(--muted);
+		font-size: 0.88rem;
+	}
+
+	.methods {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+		gap: 0.5rem;
+	}
+
+	.method {
+		position: relative;
+		display: grid;
+		gap: 0.15rem;
+		padding: 0.8rem 0.9rem;
+		border: 1px solid var(--border);
+		cursor: pointer;
+	}
+
+	.method--on {
+		border-color: var(--accent);
+		background: color-mix(in srgb, var(--accent) 10%, transparent);
+	}
+
+	.method__name {
+		color: var(--text);
+		font-weight: 700;
+	}
+
+	.method__handle {
+		color: var(--muter);
+		font-size: 0.78rem;
+		overflow-wrap: anywhere;
+	}
+
+	.paybox {
+		display: grid;
+		gap: 0.75rem;
+		margin-top: 0.75rem;
+		padding: 1rem;
+		border: 1px dashed color-mix(in srgb, var(--accent) 40%, var(--border));
+	}
+
+	.paybox__hint {
+		color: var(--muted);
+		font-size: 0.84rem;
+	}
+
+	.copyrow {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+	}
+
+	.copyrow code {
+		flex: 1;
+		min-width: 0;
+		padding: 0.6rem 0.75rem;
+		overflow-wrap: anywhere;
+	}
+
+	.copyrow--note {
+		font-size: 0.8rem;
+	}
+
+	.copyrow--note code {
+		padding: 0.25rem 0.45rem;
+	}
+
+	.check {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+		min-height: 2.75rem;
+		color: var(--text);
+		font-size: 0.9rem;
+		cursor: pointer;
+	}
+
+	.check input {
+		width: 1.15rem;
+		height: 1.15rem;
+		accent-color: var(--accent);
+	}
+
+	/* ── Done ─────────────────────────────────────────── */
+	.done {
+		position: relative;
+		display: grid;
+		justify-items: center;
+		gap: 1rem;
 		text-align: center;
 	}
 
-	.calendar-grid {
-		display: grid;
-		grid-template-columns: repeat(7, 1fr);
-		gap: 0.25rem;
+	.done__card {
+		width: 100%;
+		max-width: 24rem;
+		padding: 1.1rem;
+		border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border));
+		background: color-mix(in srgb, var(--accent) 6%, var(--panel));
 	}
 
-	.calendar-day {
-		height: 2rem;
-		border: 1px solid var(--border);
-		background: transparent;
-		color: var(--text);
-		font-family: var(--font-mono);
-		font-size: 0.8rem;
-		cursor: pointer;
-		transition: border-color 0.14s, background-color 0.14s, color 0.14s;
-	}
-
-	.calendar-day--empty {
-		border-color: transparent;
-	}
-
-	.calendar-day:hover:enabled {
-		border-color: rgba(54, 242, 194, 0.45);
-	}
-
-	.calendar-day:disabled {
-		opacity: 0.3;
-		cursor: not-allowed;
-	}
-
-	.calendar-day--today {
-		border-color: rgba(54, 242, 194, 0.45);
-	}
-
-	.calendar-day--selected {
-		border-color: rgba(54, 242, 194, 0.7);
-		background: rgba(54, 242, 194, 0.12);
-		color: var(--accent);
-	}
-
-	.selected-day-label {
+	.done__when {
+		color: var(--accent-text);
 		font-size: 0.82rem;
-		color: var(--muted);
-		margin-bottom: 0.2rem;
+		text-transform: lowercase;
 	}
 
-	.slot-grid {
-		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-		gap: 0.6rem;
+	.done__time {
+		margin: 0.2rem 0;
+		font-size: 1.35rem;
+		font-weight: 700;
 	}
 
-	.slot-btn {
-		padding: 0.5rem 0.75rem;
-		border: 1px solid var(--border);
-		background: transparent;
-		color: var(--text);
-		font-size: 0.85rem;
-		font-family: var(--font-mono);
-		cursor: pointer;
-		transition: border-color 0.14s, background-color 0.14s, color 0.14s;
-	}
-
-	.slot-btn:hover {
-		border-color: rgba(54, 242, 194, 0.45);
-	}
-
-	.slot-btn:disabled {
-		cursor: not-allowed;
-	}
-
-	.slot-btn--unavailable {
-		color: var(--muter);
-		border-color: var(--border-2);
-		background: var(--panel-2);
-	}
-
-	.slot-btn--unavailable:hover {
-		border-color: var(--border-2);
-	}
-
-	.slot-btn--selected {
-		border-color: rgba(54, 242, 194, 0.6);
-		background: rgba(54, 242, 194, 0.12);
-		color: var(--accent);
-	}
-
-	.reserve-action {
+	.done__actions {
 		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		gap: 0.5rem;
+	}
+
+	.fallback {
+		width: 100%;
+		text-align: left;
+		border: 1px solid var(--border-2);
+		padding: 0.25rem 1rem;
+	}
+
+	.fallback summary {
+		min-height: 2.75rem;
+		display: flex;
+		align-items: center;
+		color: var(--muted);
+		font-size: 0.86rem;
+		cursor: pointer;
+	}
+
+	.fallback__body {
+		margin: 0.6rem 0;
+		max-height: 16rem;
+		overflow: auto;
+		white-space: pre-wrap;
+		font-size: 0.76rem;
+	}
+
+	.fallback .done__actions {
 		justify-content: flex-start;
+		margin-bottom: 0.75rem;
 	}
 
-	.reservation-success {
-		border: 1px solid rgba(54, 242, 194, 0.35);
-		background: rgba(54, 242, 194, 0.06);
-		padding: 1rem 1rem;
-		display: flex;
-		flex-direction: column;
+	.confetti {
+		position: absolute;
+		top: 1rem;
+		left: 50%;
+		pointer-events: none;
+	}
+
+	.confetti i {
+		--a: calc(var(--i) * 20deg);
+		position: absolute;
+		width: 0.45rem;
+		height: 0.7rem;
+		background: var(--accent);
+		opacity: 0;
+		animation: burst 1.1s cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+		animation-delay: calc(var(--i) * 8ms);
+	}
+
+	.confetti i:nth-child(3n) {
+		background: var(--accent-2);
+	}
+
+	.confetti i:nth-child(4n) {
+		background: var(--hot);
+	}
+
+	@keyframes burst {
+		0% {
+			opacity: 1;
+			transform: rotate(var(--a)) translateY(0) rotate(0);
+		}
+		100% {
+			opacity: 0;
+			transform: rotate(var(--a)) translateY(-9rem) rotate(540deg);
+		}
+	}
+
+	/* ── Skeleton ─────────────────────────────────────── */
+	.skeleton__row,
+	.skeleton__grid div {
+		background: linear-gradient(90deg, var(--panel-2), var(--border-2), var(--panel-2));
+		background-size: 200% 100%;
+		animation: shimmer 1.2s linear infinite;
+	}
+
+	.skeleton__row {
+		height: 5.5rem;
+		margin-bottom: 1rem;
+	}
+
+	.skeleton__grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
 		gap: 0.45rem;
-		font-size: 0.9rem;
-		color: var(--muted);
 	}
 
-	.reservation-success__title {
-		font-family: var(--font-mono);
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
-		font-size: 0.75rem;
-		color: var(--accent);
+	.skeleton__grid div {
+		height: 2.9rem;
 	}
 
-	.error-msg {
-		padding: 0.65rem 1rem;
-		background: rgba(255, 91, 87, 0.08);
-		border: 1px solid rgba(255, 91, 87, 0.35);
-		color: #ff7b78;
-		font-size: 0.85rem;
+	@keyframes shimmer {
+		to {
+			background-position: -200% 0;
+		}
 	}
 
-	.hours-note {
-		font-size: 0.62rem;
-		line-height: 1.35;
-		letter-spacing: 0.04em;
-		text-transform: uppercase;
-		color: var(--muter);
-	}
-
-	[data-theme='light'] .picker-block {
-		background: var(--panel);
-	}
-
-	[data-theme='light'] .month-btn {
-		background: var(--bg);
-		color: var(--muted);
-	}
-
-	[data-theme='light'] .month-btn--selected {
-		background: color-mix(in srgb, var(--bg) 88%, var(--accent) 12%);
-		color: var(--accent);
-	}
-
-	[data-theme='light'] .month-btn--unavailable {
-		background: color-mix(in srgb, var(--bg) 88%, #9aa9a5 12%);
-		color: rgba(24, 65, 60, 0.46);
-		border-color: rgba(24, 65, 60, 0.16);
-	}
-
-	[data-theme='light'] .calendar-day:disabled {
-		opacity: 0.55;
-	}
-
-	[data-theme='light'] .slot-btn--unavailable {
-		background: color-mix(in srgb, var(--panel) 90%, #9aa9a5 10%);
-		color: rgba(24, 65, 60, 0.42);
-		border-color: rgba(24, 65, 60, 0.16);
-		text-decoration: line-through;
-		text-decoration-thickness: 1px;
-	}
-
-	[data-theme='light'] .slot-btn--unavailable:disabled {
-		opacity: 1;
-	}
-
-	.btn {
-		display: inline-block;
-		padding: 0.6rem 1.2rem;
-		font-family: var(--font-mono);
-		font-size: 0.9rem;
-		line-height: 1.4;
-		text-decoration: none;
-		cursor: pointer;
-		border: 1px solid transparent;
-		transition: background-color 0.15s, border-color 0.15s, color 0.15s;
-	}
-
-	.btn--primary {
-		background: rgba(54, 242, 194, 0.1);
-		border-color: rgba(54, 242, 194, 0.5);
-		color: var(--accent);
-	}
-
-	.btn--primary:hover {
-		background: rgba(54, 242, 194, 0.18);
-		border-color: rgba(54, 242, 194, 0.75);
-	}
-
-	.btn--ghost {
-		background: transparent;
-		border-color: var(--border);
-		color: var(--muted);
-	}
-
-	.btn:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
-
+	/* ── Phones ───────────────────────────────────────── */
 	@media (max-width: 640px) {
-		.steps {
-			flex-direction: column;
+		.progress__label {
+			display: none;
 		}
 
-		.step {
-			border-right: none;
-			border-bottom: 1px solid var(--border);
+		.progress__step--current .progress__label {
+			display: inline;
 		}
 
-		.step:last-child {
-			border-bottom: none;
+		.panel {
+			margin-inline: -1rem;
+			border-inline: 0;
 		}
 
-		.picker-grid {
-			grid-template-columns: 1fr;
+		.times {
+			grid-template-columns: repeat(3, minmax(0, 1fr));
 		}
-	}
 
-	@media (max-width: 980px) {
-		.picker-grid {
-			grid-template-columns: 1fr;
+		/* The primary action stays under the thumb instead of below a long list of times. */
+		.actions {
+			position: sticky;
+			bottom: 0;
+			z-index: 5;
+			margin-inline: -1.1rem;
+			margin-bottom: -1.1rem;
+			padding: 0.75rem 1.1rem calc(0.75rem + env(safe-area-inset-bottom));
+			background: var(--panel);
+			box-shadow: 0 -12px 24px -16px color-mix(in srgb, #000 55%, transparent);
+		}
+
+		.actions .btn--solid {
+			flex: 1 0 auto;
+		}
+
+		.actions__summary {
+			font-size: 0.78rem;
+		}
+
+		.summary div {
+			grid-template-columns: 3.75rem 1fr;
 		}
 	}
 </style>

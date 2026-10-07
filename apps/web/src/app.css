@@ -1,5 +1,5 @@
 /* ============================================================
-   CSS Custom Properties — design system matching mario-belmonte.com
+   CSS Custom Properties — thavlik.dev-inspired Design System
    ============================================================ */
 :root {
 	/* Background layers */
@@ -16,9 +16,15 @@
 	--muted: rgba(243, 246, 255, 0.68);
 	--muter: rgba(243, 246, 255, 0.52);
 
-	/* Accent colors */
+	/* Accent colors — change --accent to your brand color */
 	--accent: #36f2c2;
 	--accent-2: #f6c177;
+	/* --accent as *text*. Same value in dark mode; in light mode #0d9488 is only ~3.7:1 on white
+	   (WCAG AA wants 4.5:1 for body text), so links and tags use a darker teal of the same hue there
+	   while fills and borders keep --accent. */
+	--accent-text: var(--accent);
+	/* Focus ring: ≥3:1 against the page in both themes (WCAG 2.4.11). */
+	--focus-ring: color-mix(in srgb, var(--accent) 80%, transparent);
 	--hot: #ff5b57;
 	--warm: #febc2e;
 	--cool: #28c840;
@@ -26,298 +32,104 @@
 	/* Depth */
 	--shadow: 0 14px 40px rgba(0, 0, 0, 0.55);
 
-	/* Typography — all monospace */
-	--font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
-		'Courier New', monospace;
+	/* Typography — all monospace like thavlik.dev */
+	--font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
 }
 
+/* ============================================================
+   Light theme
+
+   Rebuilt from the tokens up. The previous version mapped every surface (page, header, cards,
+   buttons, chips) to one mint tone and all three text levels to near-identical teals, then tried to
+   recover hierarchy with ~350 lines of `!important` per-component overrides — including white glow
+   text-shadows on every heading and blurred white blobs behind the hero, there to hide the hero
+   canvas painting a black fade it had no light palette for (`WaveCheckeredBackground` now has one).
+
+   Now: an off-white page, white cards that lift off it with a hairline border and a soft shadow, a
+   real ink → slate → grey text scale, and teal reserved for things that mean something (links,
+   active state, the primary action). What remains below is only what tokens cannot reach: component
+   surfaces that hardcode a dark fill (`#000 22%` title bars, the `#060a0e` modals) and need a light one.
+
+   The `--clr-*` names are kept because `ProjectCard`, the project page and the contribution chart
+   reference them directly.
+   ============================================================ */
 [data-theme='light'] {
 	color-scheme: light;
-	--clr-light-a0: #ffffff;
-	--clr-surface-tonal-a0: #eaf4f2;
-	--clr-surface-tonal-a10: #dee6e5;
-	--clr-primary-a0: #0d9488;
-	--clr-primary-a30: #196159;
-	--clr-primary-a40: #19504a;
-	--clr-primary-a50: #18413c;
 
-	--bg: var(--clr-light-a0);
-	--panel: var(--clr-surface-tonal-a0);
-	--panel-2: var(--clr-surface-tonal-a0);
-	--border: var(--clr-surface-tonal-a10);
-	--border-2: var(--clr-surface-tonal-a10);
-	--text: var(--clr-primary-a50);
-	--muted: var(--clr-primary-a40);
-	--muter: var(--clr-primary-a30);
-	--accent: var(--clr-primary-a0);
-	--accent-2: var(--clr-primary-a0);
-	--shadow: none;
+	--clr-light-a0: #ffffff;
+	--clr-surface-tonal-a0: #f1f6f5;
+	--clr-surface-tonal-a10: #dde6e4;
+	--clr-primary-a0: #0d9488;
+	--clr-primary-a30: #0b5e57;
+	--clr-primary-a40: #3c4d4a;
+	--clr-primary-a50: #14211f;
+
+	--bg: #f7faf9;
+	--panel: #ffffff;
+	--panel-2: #f1f6f5;
+	--border: #dde6e4;
+	--border-2: #e8efed;
+
+	/* Ink → slate → grey. All ≥ 4.5:1 on both --bg and --panel. */
+	--text: #14211f;
+	--muted: #3c4d4a;
+	--muter: #5b6c69;
+
+	--accent: #0d9488;
+	--accent-2: #b45309;
+	--accent-text: #0f766e;
+	--focus-ring: #0f766e;
+
+	--shadow: 0 1px 2px rgba(20, 33, 31, 0.05), 0 8px 24px -12px rgba(20, 33, 31, 0.12);
+	--shadow-sm: 0 1px 2px rgba(20, 33, 31, 0.06);
+
+	/* The contribution ramp lives with the chart (`GitHubContribChart.svelte`) so it stays
+	   derived from --accent rather than pinned to GitHub's green hexes. */
 }
 
 [data-theme='light'] body {
-	background: var(--clr-light-a0);
+	background: var(--bg);
 }
 
+/* ── Surfaces that hardcode a dark fill ─────────────────────── */
+/* Opaque on phones, where the header has no backdrop blur (see `Nav.svelte`) and a translucent fill
+   would let the page text ghost through it; frosted only where the blur exists to back it. */
 [data-theme='light'] .site-header,
-[data-theme='light'] .site-header--scrolled,
-[data-theme='light'] .site-header--compact .site-nav,
-[data-theme='light'] .termbar {
-	background: var(--clr-surface-tonal-a0) !important;
-	border-color: var(--clr-surface-tonal-a10) !important;
+[data-theme='light'] .site-header--scrolled {
+	background: var(--panel) !important;
+	border-color: var(--border) !important;
 }
 
-[data-theme='light'] .header__content::before {
-	display: block !important;
-	inset: 50%;
-	transform: translate(-50%, -50%);
-	width: min(92ch, 94%);
-	height: 82%;
-	background:
-		radial-gradient(
-			ellipse at center,
-			rgba(255, 255, 255, 0.99) 0%,
-			rgba(255, 255, 255, 0.9) 22%,
-			rgba(244, 251, 249, 0.7) 42%,
-			rgba(222, 245, 240, 0.34) 60%,
-			rgba(255, 255, 255, 0) 86%
-		),
-		linear-gradient(
-			180deg,
-			rgba(255, 255, 255, 0.28) 0%,
-			rgba(255, 255, 255, 0.12) 36%,
-			rgba(255, 255, 255, 0) 76%
-		);
-	filter: blur(34px);
-	opacity: 1;
-	z-index: -1;
-	pointer-events: none;
+@media (min-width: 901px) {
+	[data-theme='light'] .site-header,
+	[data-theme='light'] .site-header--scrolled {
+		background: color-mix(in srgb, var(--panel) 88%, transparent) !important;
+	}
 }
 
-[data-theme='light'] .header__content::after {
-	content: '';
-	position: absolute;
-	left: 50%;
-	top: 8%;
-	transform: translateX(-50%);
-	width: min(64ch, 68%);
-	height: 86%;
-	background: linear-gradient(
-		180deg,
-		rgba(255, 255, 255, 0.56) 0%,
-		rgba(255, 255, 255, 0.22) 18%,
-		rgba(255, 255, 255, 0.08) 42%,
-		rgba(255, 255, 255, 0) 78%
-	);
-	filter: blur(24px);
-	opacity: 0.95;
-	z-index: -2;
-	pointer-events: none;
+[data-theme='light'] :where(.card, .video, .empty, .about-card, .game-card) {
+	background: var(--panel) !important;
+	border-color: var(--border) !important;
+	box-shadow: var(--shadow) !important;
 }
 
-[data-theme='light'] .header__tagline::before {
-	display: block !important;
-	width: calc(100% + 3rem);
-	height: calc(100% + 1.1rem);
-	background:
-		linear-gradient(
-			90deg,
-			rgba(255, 255, 255, 0) 0%,
-			rgba(255, 255, 255, 0.84) 18%,
-			rgba(255, 255, 255, 1) 50%,
-			rgba(255, 255, 255, 0.84) 82%,
-			rgba(255, 255, 255, 0) 100%
-		),
-		radial-gradient(
-			ellipse at center,
-			rgba(232, 250, 246, 0.72) 0%,
-			rgba(232, 250, 246, 0) 74%
-		);
-	filter: blur(20px);
-	opacity: 1;
-	pointer-events: none;
+[data-theme='light'] .grid .card:hover {
+	border-color: color-mix(in srgb, var(--accent) 45%, var(--border)) !important;
+	transform: none;
 }
 
-[data-theme='light'] h1,
-[data-theme='light'] h2,
-[data-theme='light'] h3,
-[data-theme='light'] h4,
-[data-theme='light'] h5,
-[data-theme='light'] h6,
-[data-theme='light'] .title,
-[data-theme='light'] .site-header__title,
-[data-theme='light'] .termbar__title,
-[data-theme='light'] .termbar__titleLink,
-[data-theme='light'] .header__tagline {
-	color: var(--clr-primary-a40) !important;
-	text-shadow: 0 1px 0 rgba(255, 255, 255, 0.98), 0 0 14px rgba(255, 255, 255, 0.7),
-		0 0 30px rgba(255, 255, 255, 0.45) !important;
-}
-
-[data-theme='light'] p,
-[data-theme='light'] .subtitle,
-[data-theme='light'] .header__description,
-[data-theme='light'] .header__cta,
-[data-theme='light'] .card__desc,
-	[data-theme='light'] .event__desc,
-	[data-theme='light'] .list__item,
-	[data-theme='light'] .card__inner,
-	[data-theme='light'] .about-me .card__inner,
-	[data-theme='light'] .timeline .event__body,
-	[data-theme='light'] .empty,
-	[data-theme='light'] .link-row,
-[data-theme='light'] .link,
-[data-theme='light'] .email-btn {
-	color: var(--clr-primary-a40) !important;
-	text-shadow: none;
-}
-
-[data-theme='light'] :where(.header__description, .header__cta, .header__meta) {
-	text-shadow: 0 1px 0 rgba(255, 255, 255, 0.82), 0 0 12px rgba(255, 255, 255, 0.4) !important;
-}
-
-[data-theme='light'] .section-title,
-[data-theme='light'] .card__dates,
-[data-theme='light'] .badge,
-	[data-theme='light'] .tech-badges,
-	[data-theme='light'] .tech-badge,
-	[data-theme='light'] .meta,
-[data-theme='light'] .tag,
-[data-theme='light'] .kicker,
-	[data-theme='light'] .meta-sep,
-	[data-theme='light'] .link-key,
-	[data-theme='light'] .github-chart .months__content,
-	[data-theme='light'] .github-chart .weekdays,
-	[data-theme='light'] .github-chart .legend__label,
-	[data-theme='light'] .github-chart .year,
-[data-theme='light'] .muted {
-	color: var(--clr-primary-a30) !important;
-}
-
-[data-theme='light'] .site-nav a,
-[data-theme='light'] .site-header__menu {
-	color: var(--clr-primary-a30) !important;
-}
-
-[data-theme='light'] :where(a, .btn, .site-nav a, .back-link a, .email-btn.footer-link),
-[data-theme='light'] .btn--ghost,
-[data-theme='light'] .btn--primary {
-	color: var(--clr-primary-a0);
-}
-
-[data-theme='light'] .site-nav a:hover,
-[data-theme='light'] .site-nav a:focus-visible,
-[data-theme='light'] .site-header__menu:hover,
-[data-theme='light'] .site-header__menu:focus-visible,
-[data-theme='light'] a:hover,
-[data-theme='light'] a:focus-visible,
-[data-theme='light'] .btn--ghost:hover,
-[data-theme='light'] .btn--primary:hover,
-[data-theme='light'] .review-cta__btn:hover,
-[data-theme='light'] .email-btn.footer-link:hover,
-[data-theme='light'] .back-link a:hover,
-[data-theme='light'] .link:hover,
-[data-theme='light'] .email-btn:hover {
-	color: var(--clr-primary-a0) !important;
-}
-
-[data-theme='light'] .trigger,
-[data-theme='light'] .theme-toggle {
-	background: var(--clr-light-a0) !important;
-	border-color: var(--clr-surface-tonal-a10) !important;
-	color: var(--clr-primary-a40) !important;
-}
-
-[data-theme='light'] .trigger:hover,
-[data-theme='light'] .theme-toggle:hover {
-	background: color-mix(in srgb, var(--clr-primary-a0) 10%, var(--clr-light-a0)) !important;
-	border-color: var(--clr-primary-a30) !important;
-	color: var(--clr-primary-a0) !important;
-}
-
-[data-theme='light'] .tag,
-[data-theme='light'] .tech-badge,
-[data-theme='light'] .tech-badge[data-tech] {
-	background: var(--clr-surface-tonal-a10) !important;
-	border-color: var(--clr-surface-tonal-a10) !important;
-	color: var(--clr-primary-a0) !important;
-	border-radius: 999px;
-	padding: 0.15rem 0.45rem;
-}
-
-[data-theme='light'] .badge[data-type='open-source'] {
-	background: color-mix(in srgb, var(--clr-primary-a0) 10%, var(--clr-light-a0)) !important;
-	color: var(--clr-primary-a0) !important;
-	border-color: color-mix(in srgb, var(--clr-primary-a0) 26%, var(--clr-surface-tonal-a10)) !important;
-}
-
-[data-theme='light'] :where(.card, .video, .empty, .site-nav, .site-header, .about-card) {
-	border-color: var(--clr-surface-tonal-a10) !important;
-	box-shadow: none !important;
-}
-
-[data-theme='light'] :where(.card, .video, .empty, .about-card) {
-	background: var(--clr-surface-tonal-a0) !important;
+/* Card title bars and the project-card media well are `#000 N%` tints in dark mode — grey smudges
+   on white. A quiet tonal band reads the same way here. */
+[data-theme='light'] :where(.termbar, .media) {
+	background: var(--panel-2) !important;
+	border-color: var(--border-2) !important;
 }
 
 [data-theme='light'] #about-me .termbar {
 	background: transparent !important;
-	border-bottom-color: var(--clr-surface-tonal-a10) !important;
 }
 
-[data-theme='light'] .timeline .event__body {
-	background: transparent !important;
-	border-color: transparent !important;
-}
-
-[data-theme='light'] .grid .card:hover {
-	border-color: var(--clr-primary-a30) !important;
-	box-shadow: none !important;
-	transform: none;
-}
-
-[data-theme='light'] .github-chart .day,
-[data-theme='light'] .github-chart .legend__square {
-	border-color: var(--clr-surface-tonal-a10);
-}
-
-[data-theme='light'] .github-chart .day[data-level='0'],
-[data-theme='light'] .github-chart .legend__square[data-level='0'] {
-	background: var(--gh-empty);
-}
-
-[data-theme='light'] .github-chart .day[data-level='1'],
-[data-theme='light'] .github-chart .legend__square[data-level='1'] {
-	background: var(--gh-l1);
-	border-color: var(--gh-l1);
-}
-
-[data-theme='light'] .github-chart .day[data-level='2'],
-[data-theme='light'] .github-chart .legend__square[data-level='2'] {
-	background: var(--gh-l2);
-	border-color: var(--gh-l2);
-}
-
-[data-theme='light'] .github-chart .day[data-level='3'],
-[data-theme='light'] .github-chart .legend__square[data-level='3'] {
-	background: var(--gh-l3);
-	border-color: var(--gh-l3);
-}
-
-[data-theme='light'] .github-chart .day[data-level='4'],
-[data-theme='light'] .github-chart .legend__square[data-level='4'] {
-	background: var(--gh-l4);
-	border-color: var(--gh-l4);
-}
-
-[data-theme='light'] .trigger__icon,
-[data-theme='light'] .theme-toggle__icon {
-	fill: currentColor;
-	stroke: currentColor;
-}
-
-/* Extended light-mode normalization for component-scoped styles. */
 [data-theme='light'] :where(
-	.termbar,
 	.modal,
 	.terminal,
 	.terminal__bar,
@@ -328,87 +140,111 @@
 	.slides__frame,
 	.media__placeholder
 ) {
-	background: var(--clr-surface-tonal-a0) !important;
-	border-color: var(--clr-surface-tonal-a10) !important;
+	background: var(--panel) !important;
+	border-color: var(--border) !important;
 }
 
-[data-theme='light'] :where(
-	.termbar__title,
-	.termbar__titleLink,
-	.termbar__label,
-	.header__description,
-	.header__cta,
-	.header__meta,
-	.meta-sep,
-	.event__label,
-	.event__desc,
-	.card__title,
-	.card__subtitle,
-	.card__desc,
-	.item,
-	.repo,
-	.repo__name,
-	.repo__desc,
-	.result__title,
-	.media__placeholderText,
-	.modal__input,
-	.terminal__input,
-	.line--output span,
-	.empty strong,
-	.cs-block__text
-) {
-	color: var(--clr-primary-a40) !important;
-	text-shadow: none !important;
+[data-theme='light'] :where(.modal, .terminal) {
+	box-shadow: 0 24px 60px -20px rgba(20, 33, 31, 0.35) !important;
 }
 
-[data-theme='light'] :where(
-	.termbar__prompt,
-	.repo__meta,
-	.repo__lang,
-	.repo__stars,
-	.result__year,
-	.terminal__title,
-	.terminal__close,
-	.modal__clear,
-	.line--input span,
-	.footer small,
-	.empty,
-	.hint
-) {
-	color: var(--clr-primary-a30) !important;
-}
-
-[data-theme='light'] :where(.modal__footer, .tag, kbd) {
-	background: var(--clr-surface-tonal-a10) !important;
-	border-color: var(--clr-surface-tonal-a10) !important;
-	color: var(--clr-primary-a30) !important;
-}
-
-[data-theme='light'] :where(.result--selected .result__btn, .result__btn:hover, .trigger:hover) {
-	background: color-mix(in srgb, var(--clr-primary-a0) 10%, transparent) !important;
-}
-
-[data-theme='light'] :where(.terminal__close:hover, .modal__clear:hover) {
-	color: var(--clr-primary-a50) !important;
-}
-
-[data-theme='light'] .tech-badge[data-tech='next.js'] {
-	background: #e2e8f0 !important;
-	border-color: #cbd5e1 !important;
-	color: #0f172a !important;
-}
-
-[data-theme='light'] :where(.card, .step-card, .faq-item, .pricing-card) {
-	border-color: var(--clr-surface-tonal-a10) !important;
-	box-shadow: none !important;
-}
-
-[data-theme='light'] :where(.card, .step-card, .faq-item, .pricing-card) {
-	background: var(--clr-surface-tonal-a0) !important;
+[data-theme='light'] :where(.modal__footer, kbd) {
+	background: var(--panel-2) !important;
+	border-color: var(--border) !important;
+	color: var(--muter) !important;
 }
 
 [data-theme='light'] :where(.backdrop, .nav-backdrop) {
-	background: rgba(15, 23, 42, 0.22) !important;
+	background: rgba(20, 33, 31, 0.28) !important;
+}
+
+[data-theme='light'] :where(.result--selected .result__btn, .result__btn:hover) {
+	background: color-mix(in srgb, var(--accent) 9%, transparent) !important;
+}
+
+[data-theme='light'] .timeline .event__body {
+	background: transparent !important;
+	border-color: transparent !important;
+}
+
+/* ── Header controls ────────────────────────────────────────── */
+[data-theme='light'] :where(.trigger, .theme-toggle, .site-header__menu) {
+	background: var(--panel) !important;
+	border-color: var(--border) !important;
+	color: var(--muted) !important;
+}
+
+[data-theme='light'] :where(.trigger, .theme-toggle):hover {
+	background: color-mix(in srgb, var(--accent) 8%, var(--panel)) !important;
+	border-color: color-mix(in srgb, var(--accent) 50%, var(--border)) !important;
+	color: var(--accent-text) !important;
+}
+
+[data-theme='light'] .site-header__title {
+	color: var(--accent-text);
+}
+
+/* ── Tags and badges ────────────────────────────────────────── */
+/* Square, like every other surface. The light theme alone used to round these into pills. */
+[data-theme='light'] :where(.tag, .tech-badge) {
+	background: var(--panel-2) !important;
+	border-color: var(--border) !important;
+	color: var(--muted) !important;
+}
+
+/* Keep the per-kind hue as a cue — darker shades of the dark-mode palette, so they pass on white. */
+[data-theme='light'] .tech-badge[data-kind='language'] { color: #1d4ed8 !important; border-color: #bfdbfe !important; background: #eff6ff !important; }
+[data-theme='light'] .tech-badge[data-kind='framework'] { color: #0f766e !important; border-color: #99f6e4 !important; background: #f0fdfa !important; }
+[data-theme='light'] .tech-badge[data-kind='api'] { color: #92400e !important; border-color: #fde68a !important; background: #fffbeb !important; }
+[data-theme='light'] .tech-badge[data-kind='service'] { color: #7e22ce !important; border-color: #e9d5ff !important; background: #faf5ff !important; }
+[data-theme='light'] .tech-badge[data-kind='protocol'] { color: #be185d !important; border-color: #fbcfe8 !important; background: #fdf2f8 !important; }
+[data-theme='light'] .tech-badge[data-kind='tool'] { color: #4d7c0f !important; border-color: #d9f99d !important; background: #f7fee7 !important; }
+
+[data-theme='light'] .badge[data-type='open-source'] {
+	background: color-mix(in srgb, var(--accent) 8%, var(--panel)) !important;
+	color: var(--accent-text) !important;
+	border-color: color-mix(in srgb, var(--accent) 30%, var(--border)) !important;
+}
+
+/* ── Links and buttons ──────────────────────────────────────── */
+[data-theme='light'] :where(a, .btn--ghost, .btn--primary, .review-cta__btn) {
+	color: var(--accent-text);
+}
+
+[data-theme='light'] .site-nav a {
+	color: var(--muted);
+}
+
+[data-theme='light'] :where(.site-nav a, .site-header__menu):hover {
+	color: var(--accent-text);
+}
+
+[data-theme='light'] :where(.btn--ghost) {
+	background: var(--panel) !important;
+	border-color: var(--border) !important;
+	color: var(--text) !important;
+}
+
+[data-theme='light'] :where(.btn--ghost):hover {
+	border-color: color-mix(in srgb, var(--accent) 50%, var(--border)) !important;
+	color: var(--accent-text) !important;
+}
+
+[data-theme='light'] :where(.btn--primary) {
+	background: color-mix(in srgb, var(--accent) 9%, var(--panel)) !important;
+	border-color: color-mix(in srgb, var(--accent) 40%, var(--border)) !important;
+	color: var(--accent-text) !important;
+}
+
+[data-theme='light'] :where(.btn--primary):hover {
+	background: color-mix(in srgb, var(--accent) 15%, var(--panel)) !important;
+	border-color: var(--accent) !important;
+}
+
+[data-theme='light'] .tech-badge[data-tech='next.js'] {
+	background: #f1f5f9 !important;
+	border-color: #cbd5e1 !important;
+	color: #0f172a !important;
 }
 
 /* ============================================================
@@ -420,7 +256,7 @@
 	box-sizing: border-box;
 	margin: 0;
 	padding: 0;
-	border-radius: 0;
+	border-radius: 0; /* sharp corners everywhere */
 }
 
 html {
@@ -435,8 +271,13 @@ html {
    Keep class management in JS, but never hard-hide main content from CSS. */
 
 body {
-	background: linear-gradient(180deg, rgba(54, 242, 194, 0.08), transparent 36%),
-		linear-gradient(0deg, rgba(246, 193, 119, 0.06), transparent 30%), var(--bg);
+	background: linear-gradient(
+			180deg,
+			rgba(54, 242, 194, 0.08),
+			transparent 36%
+		),
+		linear-gradient(0deg, rgba(246, 193, 119, 0.06), transparent 30%),
+		var(--bg);
 	color: var(--text);
 	font-family: var(--font-mono);
 	font-size: 16px;
@@ -467,7 +308,8 @@ body::before {
 	inset: 0;
 	pointer-events: none;
 	z-index: 0;
-	background-image: linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+	background-image:
+		linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
 		linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
 	background-size: 56px 56px;
 	opacity: 0.35;
@@ -476,7 +318,8 @@ body::before {
 }
 
 [data-theme='light'] body::before {
-	background-image: linear-gradient(rgba(15, 23, 42, 0.04) 1px, transparent 1px),
+	background-image:
+		linear-gradient(rgba(15, 23, 42, 0.04) 1px, transparent 1px),
 		linear-gradient(90deg, rgba(15, 23, 42, 0.04) 1px, transparent 1px);
 	opacity: 0.16;
 	-webkit-mask-image: radial-gradient(closest-side, rgba(0, 0, 0, 0.18), transparent 72%);
@@ -497,40 +340,59 @@ body::before {
 ::-webkit-scrollbar {
 	width: 6px;
 }
+
 ::-webkit-scrollbar-track {
 	background: var(--bg);
 }
+
 ::-webkit-scrollbar-thumb {
 	background: rgba(222, 232, 255, 0.15);
 }
+
 ::-webkit-scrollbar-thumb:hover {
 	background: rgba(222, 232, 255, 0.3);
+}
+
+[data-theme='light'] ::-webkit-scrollbar-thumb {
+	background: rgba(20, 33, 31, 0.22);
+}
+
+[data-theme='light'] ::-webkit-scrollbar-thumb:hover {
+	background: rgba(20, 33, 31, 0.38);
 }
 
 /* ============================================================
    Typography
    ============================================================ */
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
+h1, h2, h3, h4, h5, h6 {
 	font-family: var(--font-mono);
 	color: var(--text);
 	line-height: 1.2;
 }
 
 a {
-	color: var(--accent);
+	color: var(--accent-text);
 	font-family: var(--font-mono);
 }
 
-code,
-pre {
+/* Visually hidden but announced — e.g. "(opens in new tab)" after a ↗ link. */
+.sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
+
+code, pre {
 	font-family: var(--font-mono);
 }
 
+/* Keep code surfaces in a developer-tool dark style in both themes. */
 pre,
 code:not(.tag):not(.badge) {
 	background: #0b1220;
@@ -551,18 +413,53 @@ html,
 body,
 a,
 button,
-input,
-svg,
-svg * {
-	transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease,
-		fill 200ms ease, stroke 200ms ease, box-shadow 200ms ease;
+input {
+	transition:
+		background-color 140ms ease,
+		color 140ms ease,
+		border-color 140ms ease,
+		box-shadow 140ms ease;
 }
 
 /* ============================================================
-   Focus styles
+   Tech-badge palette — one copy. `ProjectCard` and the project detail page each carried their own
+   byte-for-byte duplicate of these seven rules. The kind comes from `getTagKind()` in
+   `$lib/utils/tags.ts`; components consume `--tag-c` (base) and `--tag-fg` (text). Light mode
+   deliberately keeps its single teal pill style (the `.tech-badge` override above), so these are
+   only read in dark mode.
+   ============================================================ */
+[data-kind='language'] { --tag-c: #3b82f6; --tag-fg: #93c5fd; }
+[data-kind='framework'] { --tag-c: #14b8a6; --tag-fg: #99f6e4; }
+[data-kind='api'] { --tag-c: #f59e0b; --tag-fg: #fcd34d; }
+[data-kind='service'] { --tag-c: #a855f7; --tag-fg: #e9d5ff; }
+[data-kind='protocol'] { --tag-c: #ec4899; --tag-fg: #fbcfe8; }
+[data-kind='tool'] { --tag-c: #84cc16; --tag-fg: #d9f99d; }
+[data-kind='other'] { --tag-c: #94a3b8; --tag-fg: #cbd5e1; }
+
+/* ============================================================
+   Touch targets — 44x44 CSS px on coarse pointers (WCAG 2.5.5 / Apple HIG). Unlayered globals, so
+   they lose to any component rule that sets the same property; none of these set min-* sizes.
+   ============================================================ */
+@media (pointer: coarse) {
+	.theme-toggle,
+	.site-header__menu,
+	.trigger,
+	.modal__clear,
+	.modal__close,
+	.terminal__close,
+	.back-to-top,
+	.email-btn,
+	.email-copy-btn {
+		min-height: 2.75rem;
+		min-width: 2.75rem;
+	}
+}
+
+/* ============================================================
+   Focus styles (accessibility)
    ============================================================ */
 :focus-visible {
-	outline: 2px solid rgba(54, 242, 194, 0.55);
+	outline: 2px solid var(--focus-ring);
 	outline-offset: 3px;
 }
 
@@ -572,6 +469,33 @@ svg * {
 @media (prefers-reduced-motion: reduce) {
 	* {
 		animation-duration: 0.01ms !important;
+		/* Without this an `infinite` animation (the type test caret blink, for one) still runs —
+		   just at 0.01ms per cycle, which is a frame-rate flicker rather than no motion. */
+		animation-iteration-count: 1 !important;
 		transition-duration: 0.01ms !important;
 	}
+
+	/* The block above only shortened durations; smooth scrolling is a separate property and survived
+	   it, so every in-page anchor still animated the viewport for people who asked it not to. */
+	html {
+		scroll-behavior: auto;
+	}
 }
+
+@media (max-width: 900px) {
+	/* Disable expensive full-page grid overlay on smaller devices for smoother scrolling. */
+	body::before {
+		display: none;
+	}
+}
+
+/* Kills the legacy 300 ms tap delay everywhere. It was previously set on two individual components,
+   so every other button on the site felt a third of a second slower to the touch than those two. */
+button,
+a,
+[role='button'],
+summary,
+label {
+	touch-action: manipulation;
+}
+

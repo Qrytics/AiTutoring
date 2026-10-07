@@ -17,6 +17,34 @@
 		let lastFrame = 0;
 		const targetFrameMs = 1000 / 30;
 
+		/*
+		 * Colours come from CSS custom properties on `.bg` (set per theme below), not literals. They
+		 * used to be hardcoded dark-mode values — near-invisible white tiles under a black fade — so in
+		 * light mode the canvas painted a grey vignette that every later "fix" tried to bury under white
+		 * glow layers. Re-read whenever `data-theme` changes; reading per frame would force a style
+		 * recalc 30 times a second.
+		 */
+		let palette = { base: '', accent: '', fade: { rgb: '0,0,0', strength: 1 } };
+		function readPalette() {
+			if (!container) return;
+			const cs = getComputedStyle(container);
+			palette = {
+				base: cs.getPropertyValue('--hero-tile-alt').trim() || 'rgba(255,255,255,0.014)',
+				accent: cs.getPropertyValue('--hero-tile').trim() || 'rgba(54,242,194,0.052)',
+				fade: {
+					rgb: cs.getPropertyValue('--hero-fade-rgb').trim() || '0,0,0',
+					strength: parseFloat(cs.getPropertyValue('--hero-fade-strength')) || 1
+				}
+			};
+		}
+		readPalette();
+		const themeObserver = new MutationObserver(() => {
+			readPalette();
+			// A reduced-motion visitor gets one static frame, so it has to be redrawn on a theme change.
+			if (raf === 0 && visible) raf = requestAnimationFrame(draw);
+		});
+		themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
 		const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
 		const updateReducedMotion = () => {
 			prefersReducedMotion = mediaQuery.matches;
@@ -38,10 +66,7 @@
 
 		function draw(now: number) {
 			if (!canvas || !container) return;
-			if (!visible) {
-				raf = 0;
-				return;
-			}
+			if (!visible) { raf = 0; return; }
 
 			if (!prefersReducedMotion && lastFrame !== 0 && now - lastFrame < targetFrameMs) {
 				raf = requestAnimationFrame(draw);
@@ -65,7 +90,7 @@
 			const period = cell * 2;
 
 			// Right-to-left motion, seamless wrap every 2*cell.
-			const speed = 24;
+			const speed = 24; // px/s
 			const offsetX = -((t * speed) % period);
 
 			// Wave warp (subtle, smooth).
@@ -74,9 +99,7 @@
 			const waveLen2 = 520;
 			const phase = t * 1.25;
 
-			// Colors (very light, on-brand).
-			const base = 'rgba(255,255,255,0.014)';
-			const accent = 'rgba(54,242,194,0.052)';
+			const { base, accent, fade } = palette;
 
 			g.save();
 			g.scale(dpr, dpr);
@@ -105,12 +128,13 @@
 				}
 			}
 
-			// Fade overlay similar to previous look.
+			// Fade toward `--hero-fade`: black in dark mode (the original look), the page colour in light
+			// mode, so the hero dissolves into the page instead of ending in a grey band.
 			const grad = g.createLinearGradient(0, 0, 0, ch);
-			grad.addColorStop(0, 'rgba(0,0,0,0)');
-			grad.addColorStop(0.18, 'rgba(0,0,0,0.15)');
-			grad.addColorStop(0.7, 'rgba(0,0,0,0.35)');
-			grad.addColorStop(1, 'rgba(0,0,0,0.55)');
+			grad.addColorStop(0, `rgba(${fade.rgb},0)`);
+			grad.addColorStop(0.18, `rgba(${fade.rgb},${0.15 * fade.strength})`);
+			grad.addColorStop(0.7, `rgba(${fade.rgb},${0.35 * fade.strength})`);
+			grad.addColorStop(1, `rgba(${fade.rgb},${Math.min(1, 0.55 * fade.strength)})`);
 			g.fillStyle = grad;
 			g.fillRect(0, 0, cw, ch);
 
@@ -129,20 +153,18 @@
 		const ro = new ResizeObserver(resize);
 		ro.observe(container);
 
-		const io = new IntersectionObserver(
-			(entries) => {
-				if (!entries.length) return;
-				visible = entries[0].isIntersecting;
-				if (visible && raf === 0) {
-					raf = requestAnimationFrame(draw);
-				}
-			},
-			{ threshold: 0 }
-		);
+		const io = new IntersectionObserver((entries) => {
+			if (!entries.length) return;
+			visible = entries[0].isIntersecting;
+			if (visible && raf === 0) {
+				raf = requestAnimationFrame(draw);
+			}
+		}, { threshold: 0 });
 		io.observe(container);
 
 		return () => {
 			cancelAnimationFrame(raf);
+			themeObserver.disconnect();
 			ro.disconnect();
 			io.disconnect();
 			mediaQuery.removeEventListener('change', updateReducedMotion);
@@ -156,10 +178,34 @@
 
 <style>
 	.bg {
+		/* Dark: the original values, unchanged. */
+		--hero-tile: rgba(54, 242, 194, 0.052);
+		--hero-tile-alt: rgba(255, 255, 255, 0.014);
+		--hero-fade-rgb: 0, 0, 0;
+		--hero-fade-strength: 1;
 		width: 100%;
 		height: 100%;
 		position: relative;
 		overflow: hidden;
+	}
+
+	/*
+	 * Light: teal tiles drawn as ink on paper rather than light on dark, fading fully into the page
+	 * background at the bottom edge. `screen` blending is a no-op over white, so it is dropped, and a
+	 * radial mask clears the tiles from behind the text so nothing has to fight for contrast with it.
+	 */
+	:global([data-theme='light']) .bg {
+		--hero-tile: rgba(13, 148, 136, 0.085);
+		--hero-tile-alt: rgba(13, 148, 136, 0.022);
+		--hero-fade-rgb: 247, 250, 249;
+		--hero-fade-strength: 1.82;
+	}
+
+	:global([data-theme='light']) .bg__canvas {
+		opacity: 1;
+		mix-blend-mode: normal;
+		-webkit-mask-image: radial-gradient(ellipse 58% 62% at 50% 46%, transparent 30%, #000 92%);
+		mask-image: radial-gradient(ellipse 58% 62% at 50% 46%, transparent 30%, #000 92%);
 	}
 
 	.bg__canvas {
@@ -172,3 +218,4 @@
 		   that incorrectly stacks above the sticky header for hit-testing in some browsers. */
 	}
 </style>
+

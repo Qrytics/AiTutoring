@@ -1,109 +1,100 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { base } from '$app/paths';
 	import WaveCheckeredBackground from '$lib/components/WaveCheckeredBackground.svelte';
-	import { tutor, subjects, resources, pricingTiers, steps, faq } from '$lib/data/tutor';
+	import SessionDemo from '$lib/components/SessionDemo.svelte';
+	import { faq, payments, resources, session, sessionFeatures, steps, subjects, tutor } from '$lib/data/tutor';
+	import { fmt, generateSlots, relativeDay, type Slot } from '$lib/schedule';
+	import { playSound } from '$lib/sound';
 
-	let toastVisible = $state(false);
-	let toastTimer: ReturnType<typeof setTimeout> | undefined;
+	// Computed after mount: the page is prerendered, and "next open slot" depends on the moment it is viewed.
+	let nextSlot = $state<Slot | null>(null);
+	let openCount = $state(0);
+	let ready = $state(false);
 
-	// FAQ accordion state — tracks which item is open
-	let openFaqIndex = $state<number | null>(null);
+	onMount(() => {
+		const slots = generateSlots();
+		nextSlot = slots[0] ?? null;
+		const weekAhead = Date.now() + 7 * 86_400_000;
+		openCount = slots.filter((s) => s.start.getTime() < weekAhead).length;
+		ready = true;
+	});
 
-	function copyEmail() {
-		navigator.clipboard.writeText(tutor.email).then(() => {
-			if (toastTimer !== undefined) clearTimeout(toastTimer);
-			toastVisible = true;
-			toastTimer = setTimeout(() => (toastVisible = false), 2500);
-		});
-	}
+	const payLabels = [
+		payments.venmo && 'Venmo',
+		payments.cashApp && 'Cash App',
+		payments.zelle && 'Zelle'
+	].filter(Boolean) as string[];
+	const payList = payLabels.length ? payLabels : ['Venmo', 'Cash App', 'Zelle'];
 
-	function toggleFaq(i: number) {
-		openFaqIndex = openFaqIndex === i ? null : i;
-	}
+	const bookHref = (topic?: string) => `${base}/book${topic ? `?topic=${encodeURIComponent(topic)}` : ''}`;
 </script>
 
-<svelte:head>
-	<title>Tutoring</title>
-</svelte:head>
-
 <!-- ═══════════════════════════════════════════════ HERO -->
-<section class="header" aria-label="Introduction">
-	<div class="hero-background" aria-hidden="true">
-		<WaveCheckeredBackground />
-	</div>
-	<div class="header__content">
-		<h1 class="header__tagline">{tutor.tagline}</h1>
-		<p class="header__description">{tutor.headline}</p>
-		<p class="header__cta">{tutor.description}</p>
-		<div class="header__actions">
-			<a href="{base}/book" class="hero-action">book a tutoring session ↗</a>
-			<a href="#pricing" class="hero-action hero-action--secondary">view pricing</a>
+<section class="hero" aria-labelledby="hero-title">
+	<div class="hero__bg" aria-hidden="true"><WaveCheckeredBackground /></div>
+
+	<div class="hero__inner">
+		<div class="hero__copy">
+			<p class="eyebrow">
+				<span class="eyebrow__dot" aria-hidden="true"></span>
+				{#if ready && nextSlot}
+					next open slot · <strong>{relativeDay(nextSlot.start)}, {fmt.time(nextSlot.start)}</strong>
+				{:else if ready}
+					fully booked right now — email me
+				{:else}
+					{tutor.tagline.toLowerCase()}
+				{/if}
+			</p>
+			<h1 id="hero-title" class="hero__title">
+				Learn code, circuits &amp; system design <span class="hero__accent">with a CMU engineer.</span>
+			</h1>
+			<p class="hero__desc">{tutor.description}</p>
+
+			<div class="hero__actions">
+				<a href={bookHref()} class="btn btn--solid btn--lg">book a session →</a>
+				<a href="#subjects" class="btn btn--ghost btn--lg">what I teach</a>
+			</div>
+
+			<ul class="hero__facts" aria-label="At a glance">
+				<li><strong>${session.price}</strong> / hour</li>
+				<li><strong>{session.minutes}</strong> min live</li>
+				<li>pay with {payList.join(' · ')}</li>
+			</ul>
 		</div>
-		<div class="header__meta">
-			<a href={tutor.github} target="_blank" rel="noopener noreferrer" class="link link__mono">
-				{tutor.github.replace('https://', '')}
-			</a>
-			<span class="meta-sep">·</span>
-			<button type="button" class="link link__mono email-copy-btn" onclick={copyEmail}>
-				{tutor.email}
-			</button>
-			<span class="meta-sep">·</span>
-			<a href={tutor.linkedin} target="_blank" rel="noopener noreferrer" class="link link__mono">
-				{tutor.linkedin.replace('https://www.', '')}
-			</a>
+
+		<div class="hero__demo">
+			<SessionDemo />
 		</div>
 	</div>
 </section>
 
-{#if toastVisible}
-	<div class="toast" role="status" aria-live="polite">email copied to clipboard</div>
-{/if}
+<!-- ═══════════════════════════════════════════════ CREDIBILITY STRIP -->
+<section class="strip" aria-label="Background">
+	<ul class="strip__list">
+		<li><span class="strip__k">edu</span> Carnegie Mellon · B.S. ECE</li>
+		<li><span class="strip__k">built</span> 35+ projects, embedded → full-stack</li>
+		<li><span class="strip__k">style</span> live, hands-on, your code</li>
+	</ul>
+</section>
 
 <!-- ═══════════════════════════════════════════════ SUBJECTS -->
-<section class="section" id="subjects" aria-label="Subjects">
+<section class="section" id="subjects" aria-labelledby="subjects-title">
 	<div class="section__inner">
-		<h2 class="section-title">what i teach</h2>
-		<div class="subjects-grid">
-			{#each subjects as subject}
-				<div class="card subject-card">
-					<span class="subject-card__icon" aria-hidden="true">{subject.icon}</span>
-					<h3 class="subject-card__title">{subject.title}</h3>
-					<p class="subject-card__desc">{subject.description}</p>
-					<div class="subject-card__tags">
-						{#each subject.tags as tag}
-							<span class="tag">{tag}</span>
-						{/each}
-					</div>
-				</div>
-			{/each}
-			<article class="card subject-card subject-card--project">
-				<h3 class="subject-card__title">
-					Learn how to make a website or create your dream project!
-				</h3>
-				<p class="subject-card__desc">
-					I teach practical end-to-end project building: GitHub workflows (issues, pull requests,
-					and GitHub Actions), deployment and CI/CD pipelines, clean file architecture, and common
-					engineering practices used by real teams.
-				</p>
-				<p class="subject-card__desc">
-					We also cover modern dev tools and AI-first workflows including VS Code, Cursor,
-					Copilot, ChatGPT, Claude, Gemini, Codex, and agent-driven development.
-				</p>
-			</article>
-		</div>
-	</div>
-</section>
-
-<!-- ═══════════════════════════════════════════════ FREE RESOURCES -->
-<section class="section section--alt" id="resources" aria-label="Free resources">
-	<div class="section__inner">
-		<h2 class="section-title">free resources</h2>
-		<div class="resources-grid">
-			{#each resources as resource}
-				<a class="resource-card" href={resource.url} target="_blank" rel="noreferrer noopener">
-					<h3 class="resource-card__title">{resource.title}</h3>
-					<p class="resource-card__desc">{resource.description}</p>
-					<span class="resource-card__link">Open resource →</span>
+		<header class="section__head">
+			<h2 id="subjects-title" class="kicker">what I teach</h2>
+			<p class="section__lead">Tap a topic to start a booking for it.</p>
+		</header>
+		<div class="subjects">
+			{#each subjects as subject (subject.title)}
+				<a class="card subject" href={bookHref(subject.title)} onclick={() => playSound('click', 0.18)}>
+					<span class="subject__icon" aria-hidden="true">{subject.icon}</span>
+					<h3 class="subject__title">{subject.title}</h3>
+					<p class="subject__desc">{subject.description}</p>
+					<ul class="tags" aria-label="Includes">
+						{#each subject.tags as tag (tag)}<li class="tag">{tag}</li>{/each}
+					</ul>
+					<span class="subject__cta">book this <span aria-hidden="true">→</span></span>
 				</a>
 			{/each}
 		</div>
@@ -111,871 +102,711 @@
 </section>
 
 <!-- ═══════════════════════════════════════════════ HOW IT WORKS -->
-<section class="section section--alt" id="how-it-works" aria-label="How it works">
+<section class="section section--alt" id="how-it-works" aria-labelledby="how-title">
 	<div class="section__inner">
-		<h2 class="section-title">how it works</h2>
-		<div class="steps-grid">
-			{#each steps as step}
-				<div class="step-card">
-					<span class="step-card__number" aria-hidden="true">{step.number}</span>
-					<h3 class="step-card__title">{step.title}</h3>
-					<p class="step-card__desc">{step.description}</p>
-				</div>
+		<header class="section__head">
+			<h2 id="how-title" class="kicker">how it works</h2>
+			<p class="section__lead">No accounts, no card forms. About a minute, start to finish.</p>
+		</header>
+		<ol class="steps">
+			{#each steps as step (step.number)}
+				<li class="step">
+					<span class="step__num" aria-hidden="true">{step.number}</span>
+					<h3 class="step__title">{step.title}</h3>
+					<p class="step__desc">{step.description}</p>
+				</li>
 			{/each}
-		</div>
+		</ol>
 	</div>
 </section>
 
 <!-- ═══════════════════════════════════════════════ PRICING -->
-<section class="section" id="pricing" aria-label="Pricing">
-	<div class="section__inner">
-		<h2 class="section-title">pricing</h2>
-		<p class="section-lead">Simple, transparent pricing. Book your time first, then pay.</p>
-		<div class="pricing-grid">
-			{#each pricingTiers as tier}
-				{@const disabledTier = tier.id !== 'single'}
-				<div class="pricing-card" class:pricing-card--popular={tier.popular}>
-					{#if tier.popular}
-						<span class="popular-badge">most popular</span>
-					{/if}
-					{#if disabledTier}
-						<span class="coming-soon-badge">native scheduling soon</span>
-					{/if}
-					<div class="pricing-card__header">
-						<h3 class="pricing-card__name">{tier.name}</h3>
-						<div class="pricing-card__price">
-							<span class="pricing-card__amount">${tier.price}</span>
-							<span class="pricing-card__unit">{tier.unit}</span>
-						</div>
-						{#if tier.pricePerHour}
-							<p class="pricing-card__per-hr">${tier.pricePerHour}/hr · saves ${tier.savings}</p>
-						{/if}
-					</div>
-					<p class="pricing-card__desc">{tier.description}</p>
-					<ul class="pricing-card__features">
-						{#each tier.features as feature}
-							<li><span class="feature-check" aria-hidden="true">✓</span> {feature}</li>
-						{/each}
-					</ul>
-					<a
-						class="btn btn--primary pricing-card__cta"
-						href={disabledTier ? '#' : `${base}/book`}
-						aria-disabled={disabledTier}
-					>
-						{disabledTier ? 'Coming soon' : 'Book a session'}
-					</a>
-				</div>
-			{/each}
+<section class="section" id="pricing" aria-labelledby="pricing-title">
+	<div class="section__inner pricing">
+		<div class="pricing__copy">
+			<h2 id="pricing-title" class="kicker">pricing</h2>
+			<p class="pricing__big">One price. No packages, no subscriptions.</p>
+			<p class="section__lead">
+				First session comes with a guarantee — if it wasn't useful, I'll refund it. Reschedule free
+				with 24 hours' notice.
+			</p>
+			{#if ready}
+				<p class="pricing__avail">
+					<span class="eyebrow__dot" aria-hidden="true"></span>
+					{openCount} open slot{openCount === 1 ? '' : 's'} in the next 7 days
+				</p>
+			{/if}
+		</div>
+
+		<div class="card price-card">
+			<p class="price-card__name">single session</p>
+			<p class="price-card__price"><span class="price-card__amount">${session.price}</span> / {session.minutes} min</p>
+			<ul class="price-card__features">
+				{#each sessionFeatures as feature (feature)}
+					<li><span aria-hidden="true">✓</span> {feature}</li>
+				{/each}
+			</ul>
+			<a class="btn btn--solid btn--block btn--lg" href={bookHref()}>pick a time →</a>
+			<ul class="paychips" aria-label="Payment options">
+				{#each payList as p (p)}<li class="paychip">{p}</li>{/each}
+			</ul>
 		</div>
 	</div>
 </section>
 
 <!-- ═══════════════════════════════════════════════ FAQ -->
-<section class="section section--alt" id="faq" aria-label="FAQ">
+<section class="section section--alt" id="faq" aria-labelledby="faq-title">
 	<div class="section__inner section__inner--narrow">
-		<h2 class="section-title">faq</h2>
-		<div class="faq-list">
-			{#each faq as item, i}
-				<div class="faq-item" class:faq-item--open={openFaqIndex === i}>
-					<button
-						class="faq-item__trigger"
-						onclick={() => toggleFaq(i)}
-						aria-expanded={openFaqIndex === i}
-						aria-controls="faq-answer-{i}"
-					>
-						<span>{item.question}</span>
-						<span class="faq-item__chevron" aria-hidden="true"
-							>{openFaqIndex === i ? '−' : '+'}</span
-						>
-					</button>
-					<div class="faq-item__answer" id="faq-answer-{i}" hidden={openFaqIndex !== i}>
-						<p>{item.answer}</p>
-					</div>
-				</div>
+		<header class="section__head">
+			<h2 id="faq-title" class="kicker">faq</h2>
+		</header>
+		<!-- Native <details>: keyboard, screen readers and find-in-page all work without any script. -->
+		<div class="faq">
+			{#each faq as item (item.question)}
+				<details class="faq__item">
+					<summary class="faq__q">{item.question}<span class="faq__icon" aria-hidden="true"></span></summary>
+					<p class="faq__a">{item.answer}</p>
+				</details>
 			{/each}
 		</div>
 	</div>
 </section>
 
-<!-- ═══════════════════════════════════════════════ BOTTOM CTA -->
-<section class="section cta-section" aria-label="Call to action">
-	<div class="section__inner section__inner--narrow cta-inner">
-		<h2 class="cta-heading">Ready to get started?</h2>
-		<p class="cta-desc">
-			Pick a time that works for you and we'll get to work. First session comes with a
-			satisfaction guarantee — if you don't find it useful, I'll refund it.
+<!-- ═══════════════════════════════════════════════ RESOURCES -->
+<section class="section" id="resources" aria-labelledby="resources-title">
+	<div class="section__inner">
+		<header class="section__head">
+			<h2 id="resources-title" class="kicker">free resources</h2>
+			<p class="section__lead">Things I point students to between sessions.</p>
+		</header>
+		<div class="resources">
+			{#each resources as resource (resource.url)}
+				<a class="card resource" href={resource.url} target="_blank" rel="noreferrer noopener">
+					<h3 class="resource__title">{resource.title} <span aria-hidden="true">↗</span></h3>
+					<p class="resource__desc">{resource.description}</p>
+				</a>
+			{/each}
+		</div>
+	</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ CTA -->
+<section class="cta" aria-labelledby="cta-title">
+	<div class="cta__inner">
+		<h2 id="cta-title" class="cta__title">Stuck on something? Let's fix it together.</h2>
+		<a href={bookHref()} class="btn btn--solid btn--lg">book a session →</a>
+		<p class="cta__note">
+			Questions first? <a href="mailto:{tutor.email}">{tutor.email}</a>
 		</p>
-		<a href="{base}/book" class="btn btn--primary btn--large">Book a Session →</a>
 	</div>
 </section>
 
 <style>
-	/* ── Hero ───────────────────────────────────────────── */
-	.header {
+	/* ── Hero ─────────────────────────────────────────── */
+	.hero {
 		position: relative;
-		margin-top: 0;
-		margin-bottom: 0;
-		min-height: 320px;
-		z-index: 1;
+		overflow: hidden;
+		border-bottom: 1px solid var(--border-2);
 	}
 
-	.hero-background {
+	.hero__bg {
 		position: absolute;
-		top: 0;
-		left: 0;
-		right: 0;
-		height: 100%;
-		z-index: 0;
+		inset: 0;
 		pointer-events: none;
 	}
 
-	.header__content {
+	.hero__inner {
 		position: relative;
-		z-index: 1;
-		padding: clamp(2rem, 4vw, 3rem) clamp(2rem, 6vw, 5rem);
-		display: flex;
-		flex-direction: column;
-		justify-content: center;
+		display: grid;
+		grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
 		align-items: center;
-		text-align: center;
-		min-height: 320px;
+		gap: clamp(2rem, 5vw, 4rem);
+		max-width: 76rem;
+		margin: 0 auto;
+		padding: clamp(3rem, 7vw, 5.5rem) clamp(1rem, 4vw, 3rem);
 	}
 
-	.header__content::before {
-		content: '';
-		position: absolute;
-		inset: 50%;
-		transform: translate(-50%, -50%);
-		width: min(80ch, 80%);
-		height: 70%;
-		background: radial-gradient(
-			ellipse at center,
-			rgba(0, 0, 0, 0.8) 0%,
-			rgba(0, 0, 0, 0.7) 30%,
-			rgba(0, 0, 0, 0.5) 60%,
-			transparent 85%
-		);
-		filter: blur(16px);
-		z-index: -1;
-		pointer-events: none;
+	.eyebrow {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.55rem;
+		margin-bottom: 1.25rem;
+		padding: 0.35rem 0.75rem;
+		border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+		background: color-mix(in srgb, var(--accent) 7%, var(--panel));
+		color: var(--muted);
+		font-size: 0.78rem;
 	}
 
-	.header__tagline {
-		position: relative;
-		margin: 0;
+	.eyebrow strong {
+		color: var(--accent-text);
+		font-weight: 600;
+	}
+
+	.eyebrow__dot {
+		width: 0.5rem;
+		height: 0.5rem;
+		flex-shrink: 0;
+		border-radius: 50%;
+		background: var(--cool);
+		box-shadow: 0 0 0 0 color-mix(in srgb, var(--cool) 60%, transparent);
+		animation: ping 2.2s ease-out infinite;
+	}
+
+	@keyframes ping {
+		70% {
+			box-shadow: 0 0 0 0.45rem color-mix(in srgb, var(--cool) 0%, transparent);
+		}
+		100% {
+			box-shadow: 0 0 0 0 color-mix(in srgb, var(--cool) 0%, transparent);
+		}
+	}
+
+	.hero__title {
+		font-size: clamp(1.75rem, 4.2vw, 2.9rem);
+		line-height: 1.15;
+		letter-spacing: -0.02em;
 		color: var(--text);
-		font-size: clamp(1.4rem, 3vw, 1.85rem);
-		font-weight: 700;
-		max-width: 75ch;
-		line-height: 1.45;
-		padding-bottom: 16px;
-		text-shadow: 0 0 4px #000, 0 2px 12px #000, 0 0 50px #000;
 	}
 
-	.header__tagline::before {
-		content: '';
-		position: absolute;
-		top: 50%;
-		left: 50%;
-		transform: translate(-50%, -50%);
-		width: calc(100% + 2rem);
-		height: calc(100% + 0.75rem);
-		background: rgba(0, 0, 0, 0.4);
-		filter: blur(12px);
-		z-index: -1;
-		pointer-events: none;
+	.hero__accent {
+		color: var(--accent-text);
 	}
 
-	:global([data-theme='light']) .header__content::before {
-		width: min(96ch, 94%);
-		height: 82%;
-		background: radial-gradient(
-			ellipse at center,
-			rgb(255, 255, 255) 100%,
-			rgba(247, 253, 251, 0.92) 90%,
-			rgba(228, 247, 243, 0.58) 8%,
-			rgba(210, 240, 234, 0.22) 9%,
-			rgba(255, 255, 255, 0) 10%
-		);
-		filter: blur(100px);
-	}
-
-	:global([data-theme='light']) .header__tagline::before {
-		width: calc(100% + 4.25rem);
-		height: calc(100% + 1.5rem);
-		background: radial-gradient(
-			ellipse at center,
-			rgba(255, 255, 255, 0.98) 100%,
-			rgba(240, 252, 248, 0.78) 5%,
-			rgba(223, 247, 241, 0.32) 8%,
-			rgba(255, 255, 255, 0) 100%
-		);
-		filter: blur(100px);
-	}
-
-	.header__description {
-		position: relative;
-		margin: 1rem 0 0;
-		color: var(--text);
-		font-size: clamp(0.9rem, 1.7vw, 1rem);
-		font-weight: 400;
-		max-width: 70ch;
+	.hero__desc {
+		margin-top: 1.1rem;
+		max-width: 58ch;
+		color: var(--muted);
+		font-size: 0.98rem;
 		line-height: 1.7;
-		text-shadow: 0 0 4px #000, 0 2px 12px #000, 0 0 50px #000;
 	}
 
-	.header__cta {
-		position: relative;
-		margin: 0.65rem 0 0;
-		color: rgba(243, 246, 255, 0.82);
-		font-size: clamp(0.9rem, 1.7vw, 1rem);
-		font-weight: 400;
-		max-width: 70ch;
-		line-height: 1.6;
-		text-shadow: 0 0 4px #000, 0 2px 12px #000, 0 0 50px #000;
-	}
-
-	.header__meta {
-		position: relative;
-		margin: 1.25rem 0 0;
-		font-size: clamp(0.95rem, 1.8vw, 1.1rem);
-		text-shadow: 0 0 4px #000, 0 2px 12px #000, 0 0 50px #000;
+	.hero__actions {
 		display: flex;
 		flex-wrap: wrap;
-		align-items: center;
-		justify-content: center;
-		gap: 0.75rem;
+		gap: 0.65rem;
+		margin-top: 1.75rem;
 	}
 
-	.header__actions {
-		position: relative;
-		margin-top: 1.15rem;
+	.hero__facts {
 		display: flex;
 		flex-wrap: wrap;
-		justify-content: center;
-		gap: 0.75rem;
+		gap: 0.4rem 1.25rem;
+		margin-top: 1.5rem;
+		list-style: none;
+		color: var(--muter);
+		font-size: 0.82rem;
 	}
 
-	/* ── Buttons ────────────────────────────────────────── */
+	.hero__facts strong {
+		color: var(--text);
+	}
+
+	.hero__facts li {
+		padding-left: 0.75rem;
+		border-left: 1px solid var(--border);
+	}
+
+	.hero__facts li:first-child {
+		padding-left: 0;
+		border-left: 0;
+	}
+
+	/* Light mode: the dark-mode legibility tricks are off; the canvas fades to the page itself. */
+	:global([data-theme='light']) .hero {
+		background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 7%, var(--bg)), var(--bg));
+	}
+
+	/* ── Buttons ──────────────────────────────────────── */
 	.btn {
-		display: inline-block;
-		padding: 0.55rem 1.2rem;
-		font-family: var(--font-mono);
-		font-size: 0.9rem;
-		line-height: 1.4;
-		text-decoration: none;
-		cursor: pointer;
-		border: 1px solid transparent;
-		transition: background-color 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s;
-	}
-
-	.btn--primary {
-		background: rgba(54, 242, 194, 0.1);
-		border-color: rgba(54, 242, 194, 0.5);
-		color: var(--accent);
-	}
-
-	.btn--primary:hover {
-		background: rgba(54, 242, 194, 0.18);
-		border-color: rgba(54, 242, 194, 0.75);
-		color: var(--accent);
-	}
-
-	.btn--large {
-		padding: 0.75rem 1.75rem;
-		font-size: 1rem;
-	}
-
-	.btn[aria-disabled='true'] {
-		opacity: 0.55;
-		pointer-events: none;
-	}
-
-	.hero-action {
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		padding: 0.5rem 0.9rem;
-		border: 1px solid rgba(54, 242, 194, 0.38);
-		background: color-mix(in srgb, var(--panel) 80%, transparent);
-		color: rgba(243, 246, 255, 0.96);
-		font-family: var(--font-mono);
-		font-size: 0.88rem;
-		line-height: 1.2;
+		min-height: 2.75rem;
+		padding: 0 1.1rem;
+		border: 1px solid var(--border);
+		font-size: 0.9rem;
 		text-decoration: none;
-		letter-spacing: 0.01em;
-		text-transform: lowercase;
-		transition: border-color 0.16s ease, color 0.16s ease, background-color 0.16s ease,
-			transform 0.16s ease;
+		transition: background-color 0.15s, border-color 0.15s, color 0.15s, transform 0.15s;
 	}
 
-	.hero-action:hover,
-	.hero-action:focus-visible {
-		border-color: rgba(54, 242, 194, 0.6);
-		color: var(--accent);
-		background: color-mix(in srgb, var(--panel) 66%, transparent);
+	.btn--lg {
+		min-height: 3rem;
+		padding: 0 1.4rem;
+		font-size: 0.95rem;
+	}
+
+	.btn--block {
+		width: 100%;
+	}
+
+	.btn--solid {
+		border-color: var(--accent);
+		background: var(--accent);
+		color: #04130f;
+		font-weight: 700;
+	}
+
+	.btn--solid:hover {
+		background: color-mix(in srgb, var(--accent) 85%, #fff);
 		transform: translateY(-1px);
 	}
 
-	.hero-action--secondary {
-		border-color: var(--border);
+	:global([data-theme='light']) .btn--solid {
+		border-color: var(--accent-text);
+		background: var(--accent-text);
+		color: #fff;
+		box-shadow: 0 8px 20px -10px color-mix(in srgb, var(--accent-text) 70%, transparent);
+	}
+
+	:global([data-theme='light']) .btn--solid:hover {
+		background: var(--clr-primary-a30);
+	}
+
+	.btn--ghost {
+		background: var(--panel);
+		color: var(--text);
+	}
+
+	.btn--ghost:hover {
+		border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+		color: var(--accent-text);
+	}
+
+	/* ── Strip ────────────────────────────────────────── */
+	.strip {
+		border-bottom: 1px solid var(--border-2);
+		background: var(--panel-2);
+	}
+
+	.strip__list {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		gap: 0.75rem 2.5rem;
+		max-width: 76rem;
+		margin: 0 auto;
+		padding: 1rem clamp(1rem, 4vw, 3rem);
+		list-style: none;
 		color: var(--muted);
+		font-size: 0.84rem;
 	}
 
-	.hero-action--secondary:hover,
-	.hero-action--secondary:focus-visible {
-		border-color: rgba(222, 232, 255, 0.3);
-		color: var(--text);
+	.strip__k {
+		margin-right: 0.5rem;
+		color: var(--accent-text);
 	}
 
-	:global([data-theme='light']) .hero-action {
-		background: color-mix(in srgb, var(--clr-light-a0) 88%, var(--clr-primary-a0) 12%);
-		border-color: color-mix(in srgb, var(--clr-primary-a0) 38%, var(--clr-surface-tonal-a10));
-		color: var(--clr-primary-a40);
+	.strip__k::after {
+		content: ':';
 	}
 
-	:global([data-theme='light']) .hero-action:hover,
-	:global([data-theme='light']) .hero-action:focus-visible {
-		background: color-mix(in srgb, var(--clr-light-a0) 82%, var(--clr-primary-a0) 18%);
-		border-color: color-mix(in srgb, var(--clr-primary-a0) 52%, var(--clr-surface-tonal-a10));
-		color: var(--clr-primary-a50);
-	}
-
-	:global([data-theme='light']) .hero-action--secondary {
-		background: var(--clr-light-a0);
-		border-color: var(--clr-surface-tonal-a10);
-		color: var(--clr-primary-a40);
-	}
-
-	:global([data-theme='light']) .hero-action--secondary:hover,
-	:global([data-theme='light']) .hero-action--secondary:focus-visible {
-		background: color-mix(in srgb, var(--clr-light-a0) 92%, var(--clr-primary-a0) 8%);
-		border-color: color-mix(in srgb, var(--clr-primary-a0) 32%, var(--clr-surface-tonal-a10));
-		color: var(--clr-primary-a50);
-	}
-
-	.link {
-		color: rgba(54, 242, 194, 0.94);
-		text-decoration: none;
-		border-bottom: 1px solid rgba(54, 242, 194, 0.3);
-		transition: border-color 0.14s ease, color 0.14s ease;
-		font-family: var(--font-mono);
-	}
-
-	.link:hover {
-		color: var(--accent);
-		border-color: rgba(54, 242, 194, 0.55);
-	}
-
-	.link__mono {
-		color: var(--text);
-	}
-
-	.meta-sep {
-		color: rgba(243, 246, 255, 0.45);
-		font-family: var(--font-mono);
-	}
-
-	.email-copy-btn {
-		background: none;
-		border-top: none;
-		border-left: none;
-		border-right: none;
-		padding: 0;
-		font: inherit;
-		cursor: pointer;
-		border-bottom: 1px solid rgba(54, 242, 194, 0.3);
-	}
-
-	.email-copy-btn:focus-visible {
-		outline: 2px solid rgba(54, 242, 194, 0.6);
-		outline-offset: 4px;
-	}
-
-	.toast {
-		position: fixed;
-		bottom: 2rem;
-		left: 50%;
-		transform: translate(-50%);
-		background: var(--panel);
-		color: rgba(243, 246, 255, 0.92);
-		padding: 0.75rem 1.5rem;
-		border: 1px solid var(--border);
-		box-shadow: var(--shadow);
-		z-index: 1000;
-		text-align: center;
-		max-width: calc(100vw - 2rem);
-		white-space: normal;
-		overflow-wrap: anywhere;
-		font-family: var(--font-mono);
-		font-size: 0.9rem;
-		animation: toast-in 0.2s ease-out;
-	}
-
-	@keyframes toast-in {
-		from {
-			opacity: 0;
-			transform: translate(-50%) translateY(1rem);
-		}
-
-		to {
-			opacity: 1;
-			transform: translate(-50%) translateY(0);
-		}
-	}
-
-	@media (max-width: 520px) {
-		.meta-sep {
-			display: none;
-		}
-	}
-
-	/* ── Wide project CTA ─────────────────────────────── */
-	.subject-card--project {
-		grid-column: 1 / -1;
-		justify-self: center;
-		width: min(100%, 56rem);
-		border-color: var(--border);
-		background: var(--panel);
-	}
-
-	.subject-card--project .subject-card__title {
-		font-size: clamp(1rem, 2.1vw, 1.25rem);
-		line-height: 1.35;
-	}
-
-	.subject-card--project .subject-card__desc + .subject-card__desc {
-		margin-top: 0.5rem;
-	}
-
-	:global([data-theme='light']) .subject-card--project {
-		border-color: var(--border);
-		background: var(--panel);
-	}
-
-	.btn:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
-
-	/* ── Sections ───────────────────────────────────────── */
+	/* ── Sections ─────────────────────────────────────── */
 	.section {
-		padding: clamp(2.5rem, 5vw, 4rem) 0;
-		position: relative;
-		z-index: 1;
+		padding: clamp(3rem, 7vw, 5rem) clamp(1rem, 4vw, 3rem);
+		scroll-margin-top: 4rem;
 	}
 
 	.section--alt {
 		background: var(--panel-2);
-		border-top: 1px solid var(--border-2);
-		border-bottom: 1px solid var(--border-2);
+		border-block: 1px solid var(--border-2);
 	}
 
 	.section__inner {
-		max-width: 86rem;
+		max-width: 76rem;
 		margin: 0 auto;
-		padding: 0 clamp(1.25rem, 4vw, 3rem);
 	}
 
 	.section__inner--narrow {
-		max-width: 56rem;
+		max-width: 48rem;
 	}
 
-	.section-title {
-		font-size: 0.72rem;
-		letter-spacing: 0.12em;
-		text-transform: uppercase;
-		color: var(--accent);
+	.section__head {
 		margin-bottom: 1.75rem;
 	}
 
-	.section-lead {
-		font-size: 0.95rem;
-		color: var(--muted);
-		margin-top: -1rem;
-		margin-bottom: 2rem;
-		max-width: 60ch;
+	.kicker {
+		margin-bottom: 0.4rem;
+		color: var(--accent-text);
+		font-size: 0.78rem;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
 	}
 
-	/* ── Subject cards ──────────────────────────────────── */
-	.subjects-grid {
-		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-		gap: 1rem;
+	.section__lead {
+		max-width: 60ch;
+		color: var(--muted);
+		font-size: 0.95rem;
+		line-height: 1.65;
 	}
 
 	.card {
-		background: var(--panel);
 		border: 1px solid var(--border);
-		padding: 1.35rem 1.5rem;
-		transition: border-color 0.18s, box-shadow 0.18s;
+		background: var(--panel);
 	}
 
-	.card:hover {
-		border-color: rgba(54, 242, 194, 0.25);
-		box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
-	}
-
-	.subject-card__icon {
-		display: block;
-		font-size: 1.4rem;
-		margin-bottom: 0.6rem;
-		line-height: 1;
-	}
-
-	.subject-card__title {
-		font-size: 0.95rem;
-		font-weight: 600;
-		margin-bottom: 0.45rem;
-		color: var(--text);
-	}
-
-	.subject-card__desc {
-		font-size: 0.85rem;
-		color: var(--muted);
-		line-height: 1.6;
-		margin-bottom: 0.9rem;
-	}
-
-	.subject-card__tags {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.35rem;
-	}
-
-	.tag {
-		font-size: 0.72rem;
-		padding: 0.15rem 0.5rem;
-		background: rgba(54, 242, 194, 0.07);
-		border: 1px solid rgba(54, 242, 194, 0.2);
-		color: rgba(54, 242, 194, 0.85);
-		font-family: var(--font-mono);
-	}
-
-	/* ── Free resources ────────────────────────────────── */
-	.resources-grid {
+	/* ── Subjects ─────────────────────────────────────── */
+	.subjects {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+		grid-template-columns: repeat(auto-fill, minmax(min(100%, 21rem), 1fr));
 		gap: 1rem;
 	}
 
-	.resource-card {
+	.subject {
 		display: flex;
 		flex-direction: column;
 		gap: 0.7rem;
-		padding: 1.2rem 1.3rem;
+		padding: 1.35rem;
+		color: inherit;
 		text-decoration: none;
-		border: 1px solid var(--border);
-		background: var(--panel);
-		transition: border-color 0.16s, background-color 0.16s;
+		transition: border-color 0.16s, transform 0.16s;
 	}
 
-	.resource-card:hover {
-		border-color: rgba(54, 242, 194, 0.45);
-		background: color-mix(in srgb, var(--panel) 88%, var(--accent) 12%);
+	.subject:hover {
+		border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+		transform: translateY(-2px);
 	}
 
-	.resource-card__title {
+	.subject__icon {
+		display: grid;
+		place-items: center;
+		width: 2.4rem;
+		height: 2.4rem;
+		border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+		background: color-mix(in srgb, var(--accent) 8%, transparent);
+		color: var(--accent-text);
+		font-size: 1rem;
+	}
+
+	.subject__title {
 		font-size: 1rem;
 		color: var(--text);
 	}
 
-	.resource-card__desc {
+	.subject__desc {
+		color: var(--muted);
 		font-size: 0.86rem;
 		line-height: 1.6;
-		color: var(--muted);
 	}
 
-	.resource-card__link {
-		font-size: 0.78rem;
-		letter-spacing: 0.07em;
-		text-transform: uppercase;
-		font-family: var(--font-mono);
-		color: var(--accent);
-	}
-
-	/* ── Steps ──────────────────────────────────────────── */
-	.steps-grid {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-		gap: 1.5rem;
-	}
-
-	.step-card {
-		background: var(--panel);
-		border: 1px solid var(--border);
-		padding: 1.5rem;
-		position: relative;
-	}
-
-	.step-card__number {
-		display: block;
-		font-size: 2rem;
-		font-weight: 700;
-		color: rgba(54, 242, 194, 0.2);
-		line-height: 1;
-		margin-bottom: 0.75rem;
-		font-family: var(--font-mono);
-	}
-
-	.step-card__title {
-		font-size: 0.95rem;
-		font-weight: 600;
-		margin-bottom: 0.5rem;
-		color: var(--text);
-	}
-
-	.step-card__desc {
-		font-size: 0.85rem;
-		color: var(--muted);
-		line-height: 1.6;
-	}
-
-	/* ── Pricing cards ──────────────────────────────────── */
-	.pricing-grid {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-		gap: 1rem;
-		align-items: start;
-	}
-
-	.pricing-card {
-		background: var(--panel);
-		border: 1px solid var(--border);
-		padding: 1.75rem 1.5rem;
-		position: relative;
+	.tags {
 		display: flex;
-		flex-direction: column;
-		gap: 0;
-		transition: border-color 0.18s, box-shadow 0.18s;
-	}
-
-	.pricing-card--popular {
-		border-color: rgba(54, 242, 194, 0.4);
-		box-shadow: 0 0 0 1px rgba(54, 242, 194, 0.12), 0 8px 32px rgba(0, 0, 0, 0.4);
-	}
-
-	.popular-badge {
-		position: absolute;
-		top: -1px;
-		right: 1.25rem;
-		font-size: 0.7rem;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		background: var(--accent);
-		color: var(--bg);
-		padding: 0.15rem 0.55rem;
-		font-family: var(--font-mono);
-	}
-
-	.coming-soon-badge {
-		position: absolute;
-		top: -1px;
-		left: 1.25rem;
-		font-size: 0.7rem;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		background: rgba(222, 232, 255, 0.18);
-		color: var(--muted);
-		padding: 0.15rem 0.55rem;
-		font-family: var(--font-mono);
-	}
-
-	.pricing-card__header {
-		margin-bottom: 0.75rem;
-	}
-
-	.pricing-card__name {
-		font-size: 0.85rem;
-		font-weight: 600;
-		color: var(--muted);
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
-		margin-bottom: 0.5rem;
-	}
-
-	.pricing-card__price {
-		display: flex;
-		align-items: baseline;
-		gap: 0.25rem;
-	}
-
-	.pricing-card__amount {
-		font-size: clamp(1.75rem, 3vw, 2.25rem);
-		font-weight: 700;
-		color: var(--text);
-		line-height: 1;
-	}
-
-	.pricing-card__unit {
-		font-size: 0.9rem;
-		color: var(--muted);
-	}
-
-	.pricing-card__per-hr {
-		font-size: 0.78rem;
-		color: var(--accent);
-		margin-top: 0.25rem;
-	}
-
-	.pricing-card__desc {
-		font-size: 0.85rem;
-		color: var(--muted);
-		line-height: 1.6;
-		margin-bottom: 1.1rem;
-	}
-
-	.pricing-card__features {
+		flex-wrap: wrap;
+		gap: 0.35rem;
 		list-style: none;
-		font-size: 0.85rem;
-		color: var(--muted);
-		display: flex;
-		flex-direction: column;
-		gap: 0.45rem;
-		margin-bottom: 1.5rem;
-		flex: 1;
+		margin-top: auto;
 	}
 
-	.feature-check {
-		color: var(--accent);
-		margin-right: 0.4rem;
+	.tag {
+		padding: 0.15rem 0.45rem;
+		border: 1px solid var(--border-2);
+		color: var(--muter);
+		font-size: 0.7rem;
 	}
 
-	.pricing-card__cta {
-		width: 100%;
-		text-align: center;
+	.subject__cta {
+		color: var(--accent-text);
+		font-size: 0.82rem;
 	}
 
-	/* ── FAQ ────────────────────────────────────────────── */
-	.faq-list {
-		display: flex;
-		flex-direction: column;
-		gap: 0;
-		border: 1px solid var(--border);
+	.subject:hover .subject__cta span {
+		display: inline-block;
+		transform: translateX(3px);
+		transition: transform 0.16s;
 	}
 
-	.faq-item {
-		border-bottom: 1px solid var(--border-2);
-	}
-
-	.faq-item:last-child {
-		border-bottom: none;
-	}
-
-	.faq-item__trigger {
-		width: 100%;
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
+	/* ── Steps ────────────────────────────────────────── */
+	.steps {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
 		gap: 1rem;
-		padding: 1rem 1.25rem;
+		list-style: none;
+		counter-reset: step;
+	}
+
+	.step {
+		position: relative;
+		padding: 1.4rem;
+		border: 1px solid var(--border);
 		background: var(--panel);
-		border: none;
-		color: var(--text);
-		font-family: var(--font-mono);
-		font-size: 0.9rem;
-		text-align: left;
-		cursor: pointer;
-		transition: background-color 0.14s, color 0.14s;
 	}
 
-	.faq-item__trigger:hover {
-		background: color-mix(in srgb, var(--panel) 60%, var(--panel-2));
-		color: var(--accent);
+	.step__num {
+		display: block;
+		margin-bottom: 0.75rem;
+		color: color-mix(in srgb, var(--accent) 55%, transparent);
+		font-size: 1.9rem;
+		font-weight: 700;
+		line-height: 1;
 	}
 
-	.faq-item--open .faq-item__trigger {
-		color: var(--accent);
+	.step__title {
+		margin-bottom: 0.45rem;
+		font-size: 1rem;
 	}
 
-	.faq-item__chevron {
-		flex-shrink: 0;
-		font-size: 1.1rem;
+	.step__desc {
 		color: var(--muted);
-		transition: color 0.14s;
+		font-size: 0.86rem;
+		line-height: 1.6;
 	}
 
-	.faq-item__answer {
-		padding: 0.85rem 1.25rem 1.1rem;
-		background: var(--panel-2);
+	/* ── Pricing ──────────────────────────────────────── */
+	.pricing {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 24rem);
+		gap: clamp(1.5rem, 5vw, 4rem);
+		align-items: center;
+	}
+
+	.pricing__big {
+		margin: 0.4rem 0 0.9rem;
+		font-size: clamp(1.35rem, 3vw, 1.9rem);
+		font-weight: 700;
+		line-height: 1.25;
+		color: var(--text);
+	}
+
+	.pricing__avail {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.55rem;
+		margin-top: 1.25rem;
+		color: var(--muted);
+		font-size: 0.84rem;
+	}
+
+	.price-card {
+		padding: 1.6rem;
+		border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+		box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent),
+			0 24px 60px -30px color-mix(in srgb, var(--accent) 45%, transparent);
+	}
+
+	.price-card__name {
+		color: var(--muter);
+		font-size: 0.76rem;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+	}
+
+	.price-card__price {
+		margin: 0.3rem 0 1.1rem;
+		color: var(--muted);
+	}
+
+	.price-card__amount {
+		color: var(--text);
+		font-size: 2.6rem;
+		font-weight: 700;
+		letter-spacing: -0.03em;
+	}
+
+	.price-card__features {
+		display: grid;
+		gap: 0.55rem;
+		margin-bottom: 1.4rem;
+		list-style: none;
+		color: var(--muted);
+		font-size: 0.88rem;
+	}
+
+	.price-card__features span {
+		margin-right: 0.4rem;
+		color: var(--accent-text);
+	}
+
+	.paychips {
+		display: flex;
+		justify-content: center;
+		gap: 0.4rem;
+		margin-top: 0.9rem;
+		list-style: none;
+	}
+
+	.paychip {
+		padding: 0.2rem 0.55rem;
+		border: 1px solid var(--border-2);
+		color: var(--muter);
+		font-size: 0.72rem;
+	}
+
+	/* ── FAQ ──────────────────────────────────────────── */
+	.faq {
+		border: 1px solid var(--border);
+		background: var(--panel);
+	}
+
+	.faq__item + .faq__item {
 		border-top: 1px solid var(--border-2);
 	}
 
-	.faq-item__answer[hidden] {
+	.faq__q {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
+		min-height: 3.25rem;
+		padding: 0.85rem 1.15rem;
+		color: var(--text);
+		font-size: 0.92rem;
+		cursor: pointer;
+		list-style: none;
+	}
+
+	.faq__q::-webkit-details-marker {
 		display: none;
 	}
 
-	.faq-item__answer p {
-		font-size: 0.88rem;
+	.faq__q:hover {
+		color: var(--accent-text);
+	}
+
+	.faq__icon {
+		position: relative;
+		flex-shrink: 0;
+		width: 0.75rem;
+		height: 0.75rem;
+	}
+
+	.faq__icon::before,
+	.faq__icon::after {
+		content: '';
+		position: absolute;
+		inset: 50% 0 auto;
+		height: 1.5px;
+		background: currentColor;
+		transition: transform 0.2s ease;
+	}
+
+	.faq__icon::after {
+		transform: rotate(90deg);
+	}
+
+	.faq__item[open] .faq__icon::after {
+		transform: rotate(0);
+	}
+
+	.faq__item[open] .faq__q {
+		color: var(--accent-text);
+	}
+
+	.faq__a {
+		padding: 0 1.15rem 1.1rem;
 		color: var(--muted);
+		font-size: 0.88rem;
 		line-height: 1.7;
-		margin: 0;
 	}
 
-	/* ── Bottom CTA ─────────────────────────────────────── */
-	.cta-section {
+	/* ── Resources ────────────────────────────────────── */
+	.resources {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
+		gap: 1rem;
+	}
+
+	.resource {
+		padding: 1.25rem;
+		color: inherit;
+		text-decoration: none;
+	}
+
+	.resource:hover {
+		border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+	}
+
+	.resource__title {
+		margin-bottom: 0.4rem;
+		font-size: 0.98rem;
+		color: var(--accent-text);
+	}
+
+	.resource__desc {
+		color: var(--muted);
+		font-size: 0.86rem;
+		line-height: 1.6;
+	}
+
+	/* ── CTA ──────────────────────────────────────────── */
+	.cta {
+		padding: clamp(3rem, 7vw, 5rem) clamp(1rem, 4vw, 3rem);
 		border-top: 1px solid var(--border-2);
+		background: radial-gradient(ellipse 60% 120% at 50% 100%, color-mix(in srgb, var(--accent) 12%, transparent), transparent);
 	}
 
-	.cta-inner {
+	.cta__inner {
+		display: grid;
+		justify-items: center;
+		gap: 1.25rem;
+		max-width: 40rem;
+		margin: 0 auto;
 		text-align: center;
 	}
 
-	.cta-heading {
-		font-size: clamp(1.25rem, 2.5vw, 1.75rem);
-		margin-bottom: 0.75rem;
+	.cta__title {
+		font-size: clamp(1.4rem, 3.4vw, 2rem);
+		line-height: 1.25;
 	}
 
-	.cta-desc {
-		font-size: 0.9rem;
-		color: var(--muted);
-		line-height: 1.7;
-		max-width: 52ch;
-		margin: 0 auto 1.75rem;
+	.cta__note {
+		color: var(--muter);
+		font-size: 0.84rem;
 	}
 
-	@media (max-width: 980px) {
-		.subject-card--project {
-			grid-column: auto;
+	/* ── Responsive ───────────────────────────────────── */
+	@media (max-width: 899px) {
+		.hero__inner {
+			grid-template-columns: 1fr;
+			padding-top: 2.25rem;
 		}
 
-		.section {
-			padding: clamp(2rem, 5vw, 3rem) 0;
+		.steps {
+			grid-template-columns: 1fr;
+		}
+
+		.pricing {
+			grid-template-columns: 1fr;
 		}
 	}
 
 	@media (max-width: 640px) {
-		.header__content {
-			padding: 2rem 1.1rem 2.4rem;
+		.eyebrow {
+			font-size: 0.74rem;
 		}
 
-		.header__actions {
-			width: 100%;
+		.hero__desc {
+			font-size: 0.9rem;
+		}
+
+		.hero__actions .btn {
+			flex: 1 1 100%;
+		}
+
+		.hero__facts {
+			gap: 0.3rem 0.75rem;
+		}
+
+		.hero__facts li:last-child {
+			flex-basis: 100%;
+			padding-left: 0;
+			border-left: 0;
+		}
+
+
+		.strip__list {
 			flex-direction: column;
+			align-items: flex-start;
+			gap: 0.4rem;
 		}
 
-		.hero-action {
-			width: min(100%, 18rem);
-			text-align: center;
+		.subject,
+		.step,
+		.price-card {
+			padding: 1.15rem;
 		}
 
-		.subjects-grid,
-		.resources-grid,
-		.steps-grid,
-		.pricing-grid {
-			grid-template-columns: 1fr;
-		}
-
-		.section__inner {
-			padding: 0 1rem;
-		}
-
-		.faq-item__trigger {
-			padding: 0.85rem 0.95rem;
-		}
-
-		.faq-item__answer {
-			padding: 0.8rem 0.95rem 1rem;
+		.subject:hover {
+			transform: none;
 		}
 	}
 </style>

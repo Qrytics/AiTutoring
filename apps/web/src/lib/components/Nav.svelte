@@ -1,138 +1,151 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { base } from '$app/paths';
-	import { tutor } from '$lib/data/tutor';
 	import { page } from '$app/state';
+	import { tutor } from '$lib/data/tutor';
+	import { getItem, setItem } from '$lib/storage';
 
 	let scrolled = $state(false);
 	let navOpen = $state(false);
-	let compact = $state(false);
-	let theme = $state<'dark' | 'light'>('dark');
-	let themeReady = $state(false);
-	const isDarkTheme = $derived(theme === 'dark');
+	let menuBtn = $state<HTMLButtonElement | undefined>();
+	let navEl = $state<HTMLElement | undefined>();
 
-	function applyTheme(nextTheme: 'dark' | 'light') {
-		document.documentElement.dataset.theme = nextTheme;
-		document.documentElement.style.colorScheme = nextTheme;
-		const themeColor = document.querySelector('meta[name="theme-color"]');
-		themeColor?.setAttribute('content', nextTheme === 'dark' ? '#0b0e12' : '#FFFFFF');
+	/*
+	 * The blocking script in `app.html` sets `data-theme` before first paint, so the theme is readable
+	 * synchronously and the icon (CSS-driven off that attribute) is right on the very first frame.
+	 * The old version rendered no toggle at all until an effect ran, then popped it into the header.
+	 */
+	function currentTheme(): 'dark' | 'light' {
+		if (typeof document === 'undefined') return 'dark';
+		return document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
+	}
+
+	let theme = $state<'dark' | 'light'>(currentTheme());
+
+	function applyTheme(next: 'dark' | 'light') {
+		document.documentElement.dataset.theme = next;
+		document.documentElement.style.colorScheme = next;
+		document
+			.querySelector('meta[name="theme-color"]')
+			?.setAttribute('content', next === 'dark' ? '#0b0e12' : '#f7faf9');
 	}
 
 	function toggleTheme() {
-		theme = isDarkTheme ? 'light' : 'dark';
+		theme = theme === 'dark' ? 'light' : 'dark';
 		applyTheme(theme);
-		window.localStorage.setItem('theme', theme);
+		setItem('theme', theme);
 	}
 
-	$effect(() => {
-		const savedTheme = window.localStorage.getItem('theme');
-		if (savedTheme === 'dark' || savedTheme === 'light') {
-			theme = savedTheme;
-		} else {
-			theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-		}
-		applyTheme(theme);
-		themeReady = true;
-
+	onMount(() => {
+		theme = currentTheme();
 		const media = window.matchMedia('(prefers-color-scheme: dark)');
-		const onPrefChange = (e: MediaQueryListEvent) => {
-			if (window.localStorage.getItem('theme')) return;
+		const onPref = (e: MediaQueryListEvent) => {
+			if (getItem('theme')) return;
 			theme = e.matches ? 'dark' : 'light';
 			applyTheme(theme);
 		};
-		media.addEventListener('change', onPrefChange);
-		return () => media.removeEventListener('change', onPrefChange);
-	});
+		media.addEventListener('change', onPref);
 
-	$effect(() => {
-		function onScroll() {
-			scrolled = window.scrollY > 8;
-		}
-		function onResize() {
-			compact = window.innerWidth < 640;
-			if (!compact) navOpen = false;
-		}
+		const onScroll = () => (scrolled = window.scrollY > 8);
 		window.addEventListener('scroll', onScroll, { passive: true });
-		window.addEventListener('resize', onResize, { passive: true });
-		onResize();
+		onScroll();
+
+		// Close the sheet if the viewport grows past the breakpoint, where its toggle is hidden.
+		const wide = window.matchMedia('(min-width: 760px)');
+		const onWide = (e: MediaQueryListEvent) => {
+			if (e.matches) navOpen = false;
+		};
+		wide.addEventListener('change', onWide);
+
 		return () => {
+			media.removeEventListener('change', onPref);
 			window.removeEventListener('scroll', onScroll);
-			window.removeEventListener('resize', onResize);
+			wide.removeEventListener('change', onWide);
 		};
 	});
 
+	$effect(() => {
+		if (!navOpen) return;
+		navEl?.querySelector<HTMLElement>('a')?.focus({ preventScroll: true });
+		const onKey = (e: KeyboardEvent) => {
+			if (e.key !== 'Escape') return;
+			navOpen = false;
+			menuBtn?.focus({ preventScroll: true });
+		};
+		window.addEventListener('keydown', onKey);
+		return () => window.removeEventListener('keydown', onKey);
+	});
+
+	const onBookPage = $derived(page.url.pathname.startsWith(`${base}/book`));
+
 	const navLinks = [
 		{ href: `${base}/#subjects`, label: 'subjects' },
+		{ href: `${base}/#how-it-works`, label: 'how it works' },
 		{ href: `${base}/#pricing`, label: 'pricing' },
-		{ href: `${base}/#faq`, label: 'faq' },
-		{ href: `${base}/book`, label: 'book a session', cta: true }
+		{ href: `${base}/#faq`, label: 'faq' }
 	];
 </script>
 
 <a href="#main" class="skip">Skip to content</a>
 
-{#if navOpen && compact}
-	<!-- svelte-ignore a11y_click_events_have_key_events -->
-	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<div class="nav-backdrop" onclick={() => (navOpen = false)}></div>
+{#if navOpen}
+	<button type="button" class="nav-backdrop" aria-label="Close menu" onclick={() => (navOpen = false)}
+	></button>
 {/if}
 
-<header
-	class="site-header"
-	class:site-header--scrolled={scrolled}
-	class:site-header--compact={compact}
->
+<header class="site-header" class:site-header--scrolled={scrolled}>
 	<div class="site-header__inner">
-		<a href={tutor.portfolioUrl} class="site-header__title">{tutor.handle}</a>
+		<a href="{base}/" class="site-header__title">
+			<span class="site-header__prompt" aria-hidden="true">~/</span>tutoring
+		</a>
 
-		<div class="site-header__tools">
-			{#if themeReady}
-				<button
-					type="button"
-					class="theme-toggle"
-					onclick={toggleTheme}
-					aria-label={isDarkTheme ? 'Switch to light mode' : 'Switch to dark mode'}
-					aria-pressed={!isDarkTheme}
-				>
-					<span class="theme-toggle__icon" aria-hidden="true">{isDarkTheme ? '☀' : '☾'}</span>
-				</button>
-			{/if}
-		</div>
-
-		<button
-			type="button"
-			class="site-header__menu"
-			aria-label="Toggle navigation"
-			aria-expanded={navOpen}
-			onclick={() => (navOpen = !navOpen)}
+		<nav
+			bind:this={navEl}
+			id="site-nav"
+			class="site-nav"
+			class:site-nav--open={navOpen}
+			aria-label="Main navigation"
 		>
-			menu
-		</button>
-
-		<nav class="site-nav" class:site-nav--open={navOpen} aria-label="Main navigation">
 			<ul>
-				{#each navLinks as link}
-					<li>
-						<a
-							href={link.href}
-							class:nav-cta={link.cta}
-							onclick={() => (navOpen = false)}
-						>{link.label}</a>
-					</li>
+				{#each navLinks as link (link.href)}
+					<li><a href={link.href} onclick={() => (navOpen = false)}>{link.label}</a></li>
 				{/each}
+				<li class="site-nav__portfolio">
+					<a href={tutor.portfolioUrl} onclick={() => (navOpen = false)}>portfolio ↗</a>
+				</li>
 			</ul>
 		</nav>
+
+		<div class="site-header__tools">
+			<button
+				type="button"
+				class="icon-btn theme-toggle"
+				onclick={toggleTheme}
+				aria-label="Light mode"
+				aria-pressed={theme === 'light'}
+				title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+			>
+				<svg class="theme-toggle__icon theme-toggle__icon--sun" viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><circle cx="8" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="1.5" /><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.4 1.4M11.55 11.55l1.4 1.4M3.05 12.95l1.4-1.4M11.55 4.45l1.4-1.4" stroke="currentColor" stroke-width="1.5" /></svg>
+				<svg class="theme-toggle__icon theme-toggle__icon--moon" viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path d="M13.5 9.6A5.75 5.75 0 0 1 6.4 2.5a5.75 5.75 0 1 0 7.1 7.1Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" /></svg>
+			</button>
+			{#if !onBookPage}
+				<a href="{base}/book" class="book-btn">book<span class="book-btn__long">&nbsp;a session</span>&nbsp;→</a>
+			{/if}
+			<button
+				bind:this={menuBtn}
+				type="button"
+				class="icon-btn site-header__menu"
+				aria-expanded={navOpen}
+				aria-controls="site-nav"
+				onclick={() => (navOpen = !navOpen)}
+			>
+				menu
+			</button>
+		</div>
 	</div>
 </header>
 
 <style>
-	.nav-backdrop {
-		position: fixed;
-		inset: 0;
-		z-index: 99;
-		background: rgba(0, 0, 0, 0.55);
-		backdrop-filter: blur(4px);
-	}
-
 	.skip {
 		position: absolute;
 		left: -9999px;
@@ -141,223 +154,234 @@
 		border: 1px solid var(--border);
 		background: var(--panel);
 		color: var(--text);
-		font-family: var(--font-mono);
 		z-index: 300;
 		text-decoration: none;
 	}
+
 	.skip:focus {
 		left: 1rem;
 	}
 
-	.site-header {
-		z-index: 200;
-		backdrop-filter: blur(10px);
-		-webkit-backdrop-filter: blur(10px);
-		background: color-mix(in srgb, var(--panel) 84%, transparent);
-		border-bottom: 1px solid var(--border);
-		transition: background-color 0.18s, backdrop-filter 0.18s, border-color 0.18s;
-		position: sticky;
-		top: 0;
-		pointer-events: none;
+	.nav-backdrop {
+		position: fixed;
+		inset: 0;
+		z-index: 99;
+		appearance: none;
+		border: 0;
+		padding: 0;
+		background: color-mix(in srgb, #000 60%, transparent);
+		cursor: default;
 	}
 
-	.site-header--scrolled {
-		background: color-mix(in srgb, var(--panel) 92%, transparent);
-		border-bottom-color: var(--border);
+	.site-header {
+		position: sticky;
+		top: 0;
+		z-index: 200;
+		background: var(--panel);
+		border-bottom: 1px solid var(--border);
+		transition: background-color 0.18s, border-color 0.18s;
+	}
+
+	/* Frosted only where there's a GPU budget for it; phones get the flat fill above. */
+	@media (min-width: 901px) {
+		.site-header {
+			backdrop-filter: blur(10px);
+			-webkit-backdrop-filter: blur(10px);
+			background: color-mix(in srgb, var(--panel) 84%, transparent);
+		}
+
+		.site-header--scrolled {
+			background: color-mix(in srgb, var(--panel) 94%, transparent);
+		}
 	}
 
 	.site-header__inner {
-		display: grid;
-		grid-template-columns: auto 1fr auto;
-		align-items: center;
-		column-gap: 0.85rem;
-		max-width: 86rem;
-		min-height: 2rem;
-		margin: 0 auto;
-		padding: 0.9rem clamp(1.25rem, 4vw, 3rem);
 		position: relative;
-		pointer-events: auto;
+		display: flex;
+		align-items: center;
+		gap: 1.25rem;
+		max-width: 76rem;
+		margin: 0 auto;
+		padding: 0.7rem clamp(1rem, 4vw, 3rem);
+	}
+
+	.site-header__title {
+		color: var(--accent-text);
+		font-weight: 700;
+		font-size: 1.02rem;
+		text-decoration: none;
+		white-space: nowrap;
+	}
+
+	.site-header__prompt {
+		color: var(--muter);
+		font-weight: 400;
+	}
+
+	.site-header__title:hover {
+		color: var(--text);
+	}
+
+	.site-nav {
+		margin-left: auto;
+	}
+
+	.site-nav ul {
+		display: flex;
+		gap: 1.25rem;
+		list-style: none;
+	}
+
+	.site-nav a {
+		color: var(--muted);
+		text-decoration: none;
+		font-size: 0.9rem;
+	}
+
+	.site-nav a:hover,
+	.site-nav a:focus-visible {
+		color: var(--accent-text);
 	}
 
 	.site-header__tools {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
-		pointer-events: auto;
-		position: static;
-		transform: none;
-		justify-self: end;
-		z-index: 3;
+		gap: 0.45rem;
+	}
+
+	.icon-btn {
+		display: inline-grid;
+		place-items: center;
+		min-width: 2.5rem;
+		height: 2.5rem;
+		padding: 0 0.7rem;
+		border: 1px solid var(--border-2);
+		background: var(--panel-2);
+		color: var(--text);
+		font: inherit;
+		font-size: 0.86rem;
+		cursor: pointer;
+	}
+
+	.icon-btn:hover {
+		border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+		color: var(--accent-text);
 	}
 
 	.theme-toggle {
-		display: inline-grid;
-		place-items: center;
-		padding: 0.25rem 0.55rem;
-		min-width: 2.05rem;
-		border: 1px solid var(--border-2);
-		background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.01)),
-			var(--panel-2);
-		color: var(--text);
-		font-family: var(--font-mono);
-		font-size: 0.82rem;
-		line-height: 1.2;
-		cursor: pointer;
-		transition: border-color 0.14s, color 0.14s, transform 0.14s, background-color 0.14s;
+		padding: 0;
 	}
 
-	.theme-toggle:hover {
-		border-color: rgba(54, 242, 194, 0.5);
-		color: var(--accent);
+	.theme-toggle__icon--moon,
+	:global([data-theme='light']) .theme-toggle__icon--sun {
+		display: none;
 	}
 
-	.theme-toggle__icon {
+	:global([data-theme='light']) .theme-toggle__icon--moon {
 		display: block;
-		line-height: 1;
-		font-size: 0.9rem;
-		opacity: 0.9;
 	}
 
-	.site-header__title {
-		position: relative;
-		z-index: 2;
-		color: var(--accent);
-		font-family: var(--font-mono);
-		font-size: clamp(1rem, 1.5vw, 1.15rem);
+	.book-btn {
+		display: inline-flex;
+		align-items: center;
+		height: 2.5rem;
+		padding: 0 0.95rem;
+		border: 1px solid var(--accent);
+		background: color-mix(in srgb, var(--accent) 14%, transparent);
+		color: var(--accent-text);
+		font-size: 0.86rem;
 		font-weight: 600;
-		line-height: 1.2;
 		text-decoration: none;
-		transition: color 0.18s;
+		white-space: nowrap;
+		transition: background-color 0.15s, color 0.15s;
 	}
-	.site-header__title:hover {
-		color: var(--text);
+
+	.book-btn:hover {
+		background: var(--accent);
+		color: var(--bg);
+	}
+
+	:global([data-theme='light']) .book-btn {
+		background: var(--accent-text);
+		border-color: var(--accent-text);
+		color: #fff;
+	}
+
+	:global([data-theme='light']) .book-btn:hover {
+		background: var(--clr-primary-a30);
 	}
 
 	.site-header__menu {
-		font: inherit;
-		color: var(--text);
-		cursor: pointer;
-		background: none;
-		border: none;
-		padding: 0.25rem 0;
-		font-family: var(--font-mono);
-		line-height: 1.2;
 		display: none;
-		justify-self: end;
 	}
 
-	.site-nav {
-		display: block;
-		position: relative;
-		z-index: 2;
-		justify-self: end;
+	@media (max-width: 759px) {
+		.site-header__inner {
+			gap: 0.5rem;
+		}
+
+		.site-header__tools {
+			margin-left: auto;
+		}
+
+		.site-header__menu {
+			display: inline-grid;
+		}
+
+		.icon-btn,
+		.book-btn {
+			height: 2.75rem;
+			min-width: 2.75rem;
+		}
+
+		.book-btn__long {
+			display: none;
+		}
+
+		.site-header__menu[aria-expanded='true'] {
+			border-color: var(--accent);
+			color: var(--accent-text);
+		}
+
+		/* Full-width sheet under the header row. */
+		.site-nav {
+			display: none;
+			position: absolute;
+			top: calc(100% + 1px);
+			left: 0;
+			right: 0;
+			margin: 0;
+			background: var(--panel);
+			border-bottom: 1px solid var(--border);
+			box-shadow: 0 18px 40px color-mix(in srgb, #000 35%, transparent);
+			z-index: 10;
+		}
+
+		.site-nav--open {
+			display: block;
+		}
+
+		.site-nav ul {
+			flex-direction: column;
+			gap: 0;
+			padding: 0.35rem 0;
+		}
+
+		.site-nav li + li {
+			border-top: 1px solid var(--border-2);
+		}
+
+		.site-nav a {
+			display: block;
+			padding: 0.9rem 1.25rem;
+			font-size: 1rem;
+			color: var(--text);
+		}
 	}
 
-	.site-nav ul {
-		display: flex;
-		align-items: center;
-		gap: 1.2rem;
-		margin: 0;
-		padding: 0;
-		list-style: none;
-	}
-
-	.site-nav a {
-		color: var(--text);
-		padding: 0.2rem 0;
-		font-family: var(--font-mono);
-		font-size: 0.95rem;
-		line-height: 1.4;
-		text-decoration: none;
-		transition: color 0.18s;
-		display: inline-block;
-		position: relative;
-	}
-
-	.site-nav a::after {
-		content: '';
-		opacity: 0;
-		pointer-events: none;
-		background: currentColor;
-		height: 1px;
-		transition: opacity 0.18s, transform 0.18s;
-		position: absolute;
-		bottom: -0.1rem;
-		left: 0;
-		right: 0;
-		transform: translateY(3px);
-	}
-
-	.site-nav a:hover,
-	.site-nav a:focus-visible {
-		color: var(--accent);
-	}
-
-	.site-nav a:hover::after,
-	.site-nav a:focus-visible::after {
-		opacity: 0.85;
-		transform: translateY(0);
-	}
-
-	.nav-cta {
-		color: var(--accent) !important;
-		border: 1px solid rgba(54, 242, 194, 0.35);
-		padding: 0.2rem 0.65rem !important;
-		transition: background-color 0.14s, border-color 0.14s, color 0.14s !important;
-	}
-
-	.nav-cta:hover {
-		background: rgba(54, 242, 194, 0.08);
-		border-color: rgba(54, 242, 194, 0.6) !important;
-	}
-
-	/* Compact / mobile */
-	.site-header--compact .site-header__inner {
-		grid-template-columns: 1fr auto auto;
-	}
-
-	.site-header--compact .site-header__menu {
-		display: inline-block;
-		position: relative;
-		z-index: 3;
-	}
-
-	.site-header--compact .site-nav {
-		backdrop-filter: blur(10px);
-		-webkit-backdrop-filter: blur(10px);
-		background: color-mix(in srgb, var(--panel) 92%, transparent);
-		border: 1px solid var(--border);
-		min-width: 10rem;
-		display: none;
-		position: absolute;
-		top: calc(100% + 0.25rem);
-		right: clamp(1.25rem, 4vw, 3rem);
-		z-index: 10;
-	}
-
-	.site-header--compact .site-nav--open {
-		display: block;
-	}
-
-	.site-header--compact .site-nav ul {
-		flex-direction: column;
-		align-items: flex-start;
-		gap: 0;
-		padding: 0.5rem 0.9rem;
-	}
-
-	.site-header--compact .site-nav li {
-		width: 100%;
-	}
-
-	.site-header--compact .site-nav a {
-		width: 100%;
-		padding: 0.45rem 0;
-		display: block;
-	}
-
-	.site-header--compact .nav-cta {
-		border: none;
-		padding: 0.45rem 0 !important;
+	@media (min-width: 760px) and (max-width: 959px) {
+		.site-nav__portfolio {
+			display: none;
+		}
 	}
 </style>
