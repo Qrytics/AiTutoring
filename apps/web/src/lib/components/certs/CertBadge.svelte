@@ -10,6 +10,7 @@
 	 *
 	 * TWIN FILE: copied from the portfolio's `src/lib/components/certs/CertBadge.svelte` — keep in sync.
 	 */
+	import { base } from '$app/paths';
 	import { groupTint, type Certification } from '$lib/data/certifications';
 
 	let {
@@ -34,7 +35,7 @@
 	{#if featured}<span class="badge__halo"></span><span class="badge__rays"></span>{/if}
 
 	{#if cert.image}
-		<img class="badge__img" src={cert.image} alt="" loading="lazy" decoding="async" width={size} height={size} />
+		<img class="badge__img" src={cert.image.startsWith('/') ? `${base}${cert.image}` : cert.image} alt="" loading="lazy" decoding="async" width={size} height={size} />
 	{:else}
 		<svg class="badge__svg" viewBox="0 0 100 112" width={size} height={size * 1.12}>
 			<defs>

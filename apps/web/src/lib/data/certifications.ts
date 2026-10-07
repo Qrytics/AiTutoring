@@ -6,10 +6,12 @@
  * credential in both places.
  *
  * Dates are exactly as the issuer shows them: some credentials show an issue date, others only an
- * expiry, and the Microsoft ones were given without dates — none are invented. `image` and
- * `verifyUrl` are empty until the official badge art (Credly / Microsoft Learn) and verification
- * links are added; when `image` is set it replaces the drawn medallion.
+ * expiry, and the Microsoft ones were given without dates — none are invented. Official badge art,
+ * verification links and exact dates come from Credly and Microsoft Learn via the generated
+ * `certificationAssets.ts` — run `node scripts/update-cert-assets.mjs` (portfolio repo) to refresh.
  */
+
+import { certificationAssets } from './certificationAssets';
 
 export type CertGroup = 'Microsoft' | 'Anthropic' | 'Google Cloud' | 'Red Hat' | 'ServiceNow' | 'IBM';
 export type CertCategory = 'quantum' | 'ai' | 'data' | 'cloud' | 'security' | 'dev' | 'business' | 'design';
@@ -55,7 +57,7 @@ const ibm = (
 	extra: Partial<Certification> = {}
 ): Certification => ({ id, title, issuer: 'IBM', group: 'IBM', code, category, ...dates, ...extra });
 
-export const certifications: Certification[] = [
+const listed: Certification[] = [
 	// ── Featured ──────────────────────────────────────────────────────────────
 	ibm('ibm-general-formulation-quantum-info', 'General Formulation of Quantum Information', 'GFQI', 'quantum', { issued: '2026-08-24' }, { featured: 1 }),
 	ibm('ibm-deep-learning-tensorflow', 'Deep Learning using TensorFlow', 'DLTF', 'ai', { issued: '2026-09-04' }, { featured: 2 }),
@@ -82,7 +84,7 @@ export const certifications: Certification[] = [
 
 	// ── Microsoft ─────────────────────────────────────────────────────────────
 	{ id: 'ms-dp-900', title: 'Azure Data Fundamentals (DP-900)', issuer: 'Microsoft', group: 'Microsoft', code: 'DP-900', category: 'data' },
-	{ id: 'ms-ai-901', title: 'Microsoft AI-901', issuer: 'Microsoft', group: 'Microsoft', code: 'AI-901', category: 'ai' },
+	{ id: 'ms-ai-901', title: 'Azure AI Fundamentals (AI-901)', issuer: 'Microsoft', group: 'Microsoft', code: 'AI-901', category: 'ai' },
 	{ id: 'ms-gh-300', title: 'GitHub Copilot (GH-300)', issuer: 'Microsoft', group: 'Microsoft', code: 'GH-300', category: 'dev' },
 
 	// ── Anthropic ─────────────────────────────────────────────────────────────
@@ -129,6 +131,11 @@ export const certifications: Certification[] = [
 	ibm('ibm-bob-intermediate', 'IBM Bob Intermediate', 'BOB', 'dev', { expires: '2027-08-25' }),
 	ibm('ibm-growth-behaviors', 'IBM Growth Behaviors', 'IGB', 'business', { expires: '2036-09-22' })
 ];
+
+/** The list above, with official badge art, verify links and exact issuer dates merged in from the
+ *  generated `certificationAssets.ts` (scripts/update-cert-assets.mjs). Anything it lacks keeps the
+ *  hand-written values and the drawn medallion. */
+export const certifications: Certification[] = listed.map((c) => ({ ...c, ...certificationAssets[c.id] }));
 
 export const featuredCertifications = certifications
 	.filter((c) => c.featured)
