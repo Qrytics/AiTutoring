@@ -21,9 +21,9 @@
 		}
 	};
 
-	const path = $derived(page.url.pathname.slice(base.length) || '/');
+	const path = $derived(page.url.pathname.slice(base.length).replace(/(.)\/$/, '$1') || '/');
 	const meta = $derived(routeMeta[path] ?? routeMeta['/']);
-	const canonical = $derived(`${SITE}${base}${path === '/' ? '' : path}`);
+	const canonical = $derived(`${SITE}${base}${path === '/' ? '/' : `${path}/`}`);
 </script>
 
 <svelte:head>

@@ -129,7 +129,7 @@
 				<svg class="theme-toggle__icon theme-toggle__icon--moon" viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path d="M13.5 9.6A5.75 5.75 0 0 1 6.4 2.5a5.75 5.75 0 1 0 7.1 7.1Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" /></svg>
 			</button>
 			{#if !onBookPage}
-				<a href="{base}/book" class="book-btn">book<span class="book-btn__long">&nbsp;a session</span>&nbsp;→</a>
+				<a href="{base}/book/" class="book-btn">book<span class="book-btn__long">&nbsp;a session</span>&nbsp;→</a>
 			{/if}
 			<button
 				bind:this={menuBtn}

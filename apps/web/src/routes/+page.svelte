@@ -27,7 +27,7 @@
 	].filter(Boolean) as string[];
 	const payList = payLabels.length ? payLabels : ['Venmo', 'Cash App', 'Zelle'];
 
-	const bookHref = (topic?: string) => `${base}/book${topic ? `?topic=${encodeURIComponent(topic)}` : ''}`;
+	const bookHref = (topic?: string) => `${base}/book/${topic ? `?topic=${encodeURIComponent(topic)}` : ''}`;
 </script>
 
 <!-- ═══════════════════════════════════════════════ HERO -->
