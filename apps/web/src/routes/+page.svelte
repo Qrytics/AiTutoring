@@ -3,6 +3,7 @@
 	import { base } from '$app/paths';
 	import WaveCheckeredBackground from '$lib/components/WaveCheckeredBackground.svelte';
 	import SessionDemo from '$lib/components/SessionDemo.svelte';
+	import Credentials from '$lib/components/certs/Credentials.svelte';
 	import { faq, payments, resources, session, sessionFeatures, steps, subjects, tutor } from '$lib/data/tutor';
 	import { fmt, generateSlots, relativeDay, type Slot } from '$lib/schedule';
 	import { playSound } from '$lib/sound';
@@ -77,6 +78,9 @@
 		<li><span class="strip__k">style</span> live, hands-on, your code</li>
 	</ul>
 </section>
+
+<!-- ═══════════════════════════════════════════════ CREDENTIALS -->
+<Credentials />
 
 <!-- ═══════════════════════════════════════════════ SUBJECTS -->
 <section class="section" id="subjects" aria-labelledby="subjects-title">
