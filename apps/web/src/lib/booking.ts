@@ -61,7 +61,7 @@ export function availablePayMethods(slot: Slot): PayMethod[] {
 			id: 'zelle',
 			label: 'Zelle',
 			handle: zelle,
-			hint: 'Send from your banking app to this address.'
+			hint: `Send from your banking app's Zelle to this ${/@/.test(zelle) ? 'email' : 'number'}.`
 		});
 	}
 	return methods;

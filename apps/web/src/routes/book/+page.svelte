@@ -363,7 +363,7 @@
 						{:else}
 							<div class="copyrow">
 								<code>{method.handle}</code>
-								<button type="button" class="btn btn--ghost" onclick={() => copy(method.handle, 'Zelle address')}>copy</button>
+								<button type="button" class="btn btn--ghost" onclick={() => copy(method.handle, 'Zelle info')}>copy</button>
 							</div>
 						{/if}
 						<div class="copyrow copyrow--note">
@@ -900,7 +900,7 @@
 
 	.methods {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+		grid-template-columns: repeat(auto-fit, minmax(6.75rem, 1fr));
 		gap: 0.5rem;
 	}
 
@@ -1152,6 +1152,24 @@
 
 		.summary div {
 			grid-template-columns: 3.75rem 1fr;
+		}
+
+		/* One row per method: three columns broke handles mid-word ("@mariobelm / onte"). */
+		.methods {
+			grid-template-columns: 1fr;
+		}
+
+		.method {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 0.75rem;
+			min-height: 3.25rem;
+		}
+
+		.method__handle {
+			overflow-wrap: normal;
+			white-space: nowrap;
 		}
 	}
 </style>

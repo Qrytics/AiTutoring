@@ -12,6 +12,11 @@
 		left: 50%;
 		bottom: max(1.25rem, env(safe-area-inset-bottom));
 		z-index: 500;
+		/* max-content, capped: at `left: 50%` a fixed box otherwise shrink-wraps into the right half of
+		   the viewport and wraps every toast on a phone. */
+		width: max-content;
+		max-width: calc(100vw - 2rem);
+		text-align: center;
 		padding: 0.7rem 1.1rem;
 		border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
 		background: var(--panel);

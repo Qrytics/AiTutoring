@@ -33,11 +33,11 @@ export const session = {
 
 export const payments = {
 	/** Venmo username, without the @ — e.g. 'mario-belmonte'. */
-	venmo: '',
+	venmo: 'mariobelmonte',
 	/** Cash App $cashtag, without the $ — e.g. 'mariob'. */
-	cashApp: '',
+	cashApp: 'MarioABelmonte',
 	/** The email or US phone number registered with Zelle. Zelle has no pay links, so this is shown with a copy button. */
-	zelle: ''
+	zelle: '956-560-9969'
 };
 
 // ─── Availability ─────────────────────────────────────────────────────────────
