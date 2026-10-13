@@ -6,14 +6,14 @@
  * credential in both places.
  *
  * Dates are exactly as the issuer shows them: some credentials show an issue date, others only an
- * expiry, and the Microsoft ones were given without dates — none are invented. Official badge art,
- * verification links and exact dates come from Credly and Microsoft Learn via the generated
+ * expiry — none are invented. Official badge art, verification links and exact dates come from
+ * Credly, Microsoft Learn and Accredible (OpenAI) via the generated
  * `certificationAssets.ts` — run `node scripts/update-cert-assets.mjs` (portfolio repo) to refresh.
  */
 
 import { certificationAssets } from './certificationAssets';
 
-export type CertGroup = 'Microsoft' | 'Anthropic' | 'Google Cloud' | 'Red Hat' | 'ServiceNow' | 'IBM';
+export type CertGroup = 'Microsoft' | 'Anthropic' | 'OpenAI' | 'Google Cloud' | 'Red Hat' | 'ServiceNow' | 'IBM';
 export type CertCategory = 'quantum' | 'ai' | 'data' | 'cloud' | 'security' | 'dev' | 'business' | 'design';
 
 export interface Certification {
@@ -40,6 +40,7 @@ export interface Certification {
 export const CERT_GROUPS: ReadonlyArray<{ id: CertGroup; tint: string }> = [
 	{ id: 'Microsoft', tint: '#1f9bf0' },
 	{ id: 'Anthropic', tint: '#d97757' },
+	{ id: 'OpenAI', tint: '#10a37f' },
 	{ id: 'Google Cloud', tint: '#3fae67' },
 	{ id: 'Red Hat', tint: '#e5484d' },
 	{ id: 'ServiceNow', tint: '#9b87f5' },
@@ -60,17 +61,6 @@ const ibm = (
 const listed: Certification[] = [
 	// ── Featured ──────────────────────────────────────────────────────────────
 	ibm('ibm-general-formulation-quantum-info', 'General Formulation of Quantum Information', 'GFQI', 'quantum', { issued: '2026-08-24' }, { featured: 1 }),
-	ibm('ibm-deep-learning-tensorflow', 'Deep Learning using TensorFlow', 'DLTF', 'ai', { issued: '2026-09-04' }, { featured: 2 }),
-	{
-		id: 'gcp-gemini-enterprise-agent-dev',
-		title: 'Certified Partner Specialist: Gemini Enterprise Agent Development',
-		issuer: 'Google Cloud',
-		group: 'Google Cloud',
-		code: 'GEAD',
-		category: 'ai',
-		expires: '2027-03-21',
-		featured: 3
-	},
 	{
 		id: 'anthropic-claude-certified-architect-pro',
 		title: 'Claude Certified Architect – Professional',
@@ -79,8 +69,19 @@ const listed: Certification[] = [
 		code: 'CCA-P',
 		category: 'ai',
 		expires: '2027-09-18',
-		featured: 4
+		featured: 2
 	},
+	{
+		id: 'gcp-build-with-gemini-track-3',
+		title: 'Build with Gemini – Track 3: Software Developer / App Builder',
+		issuer: 'Explore Google Cloud',
+		group: 'Google Cloud',
+		code: 'BWG-3',
+		category: 'dev',
+		issued: '2026-10-12',
+		featured: 3
+	},
+	{ id: 'ms-az-900', title: 'Azure Fundamentals (AZ-900)', issuer: 'Microsoft', group: 'Microsoft', code: 'AZ-900', category: 'cloud', featured: 4 },
 
 	// ── Microsoft ─────────────────────────────────────────────────────────────
 	{ id: 'ms-dp-900', title: 'Azure Data Fundamentals (DP-900)', issuer: 'Microsoft', group: 'Microsoft', code: 'DP-900', category: 'data' },
@@ -91,7 +92,27 @@ const listed: Certification[] = [
 	{ id: 'anthropic-claude-certified-dev-foundations', title: 'Claude Certified Developer – Foundations', issuer: 'Anthropic', group: 'Anthropic', code: 'CCD-F', category: 'ai', expires: '2027-08-28' },
 	{ id: 'anthropic-claude-partner-claude-code', title: 'Claude Partner Badge – Claude Code', issuer: 'Anthropic', group: 'Anthropic', code: 'CC', category: 'dev', expires: '2027-03-08' },
 
+	// ── OpenAI ────────────────────────────────────────────────────────────────
+	{ id: 'openai-consultative-solutions-practitioner', title: 'OpenAI Consultative Solutions Practitioner', issuer: 'OpenAI', group: 'OpenAI', code: 'OCSP', category: 'business' },
+	{ id: 'openai-technical-practitioner', title: 'OpenAI Technical Practitioner', issuer: 'OpenAI', group: 'OpenAI', code: 'OTP', category: 'ai' },
+	{ id: 'openai-api-deployment-practitioner', title: 'API Deployment Practitioner', issuer: 'OpenAI', group: 'OpenAI', code: 'API-D', category: 'dev' },
+	{ id: 'openai-chatgpt-deployment-practitioner', title: 'ChatGPT Deployment Practitioner', issuer: 'OpenAI', group: 'OpenAI', code: 'CGPT-D', category: 'ai' },
+	{ id: 'openai-chatgpt-solutions-practitioner', title: 'ChatGPT Solutions Practitioner', issuer: 'OpenAI', group: 'OpenAI', code: 'CGPT-S', category: 'ai' },
+	{ id: 'openai-codex-deployment-practitioner', title: 'Codex Deployment Practitioner', issuer: 'OpenAI', group: 'OpenAI', code: 'CDX-D', category: 'dev' },
+	{ id: 'openai-codex-solutions-practitioner', title: 'Codex Solutions Practitioner', issuer: 'OpenAI', group: 'OpenAI', code: 'CDX-S', category: 'dev' },
+	{ id: 'openai-cyber-deployment-practitioner', title: 'OpenAI Cyber Deployment Practitioner', issuer: 'OpenAI', group: 'OpenAI', code: 'CYB-D', category: 'security' },
+	{ id: 'openai-foundational-knowledge', title: 'OpenAI Foundational Knowledge', issuer: 'OpenAI', group: 'OpenAI', code: 'OFK', category: 'ai' },
+
 	// ── Google Cloud ──────────────────────────────────────────────────────────
+	{
+		id: 'gcp-gemini-enterprise-agent-dev',
+		title: 'Certified Partner Specialist: Gemini Enterprise Agent Development',
+		issuer: 'Google Cloud',
+		group: 'Google Cloud',
+		code: 'GEAD',
+		category: 'ai',
+		expires: '2027-03-21'
+	},
 	{ id: 'gcp-build-with-gemini', title: 'Build with Gemini', issuer: 'Google Cloud', group: 'Google Cloud', code: 'BWG', category: 'ai', issued: '2026-09-28' },
 	{ id: 'gcp-antigravity', title: 'Accelerate Development with Antigravity', issuer: 'Google Cloud', group: 'Google Cloud', code: 'ADA', category: 'dev', issued: '2026-09-21' },
 	{ id: 'gcp-adk-evaluate', title: 'Evaluate and Improve Agent Development Kit Agents', issuer: 'Google Cloud', group: 'Google Cloud', code: 'ADK', category: 'ai', issued: '2026-09-21' },
@@ -105,6 +126,7 @@ const listed: Certification[] = [
 	{ id: 'servicenow-delivery-ai-agents', title: 'Delivery Accreditation – AI Agents', issuer: 'ServiceNow', group: 'ServiceNow', code: 'DA-AI', category: 'ai', issued: '2026-09-17' },
 
 	// ── IBM ───────────────────────────────────────────────────────────────────
+	ibm('ibm-deep-learning-tensorflow', 'Deep Learning using TensorFlow', 'DLTF', 'ai', { issued: '2026-09-04' }),
 	ibm('ibm-healthcare-jumpstart', 'Healthcare Industry Jumpstart', 'HIJ', 'business', { issued: '2026-09-18' }),
 	ibm('ibm-data-viz-python', 'Data Visualization Using Python', 'DVP', 'data', { issued: '2026-09-04' }),
 	ibm('ibm-quantum-safe-encryption', 'Quantum-Safe Encryption Essentials', 'QSE', 'security', { issued: '2026-08-25' }),
